@@ -146,8 +146,6 @@ async function generateGeminiResponse(sender, text) {
         Pesan mereka: "${text}".
         
         Selalu tambahkan tulisan ini di awal chat kamu: "*Reika (Asisten AI Pribadi Karel)*" [kasih jarak 1 baris setelahnya]
-
-        Selalu tambahkan tulisan ini di akhir chat kamu: "[Note: Chat ini dikirim otomatis oleh AI, segala interaksi akan diteruskan ke Karel]" [kasih jarak 1 baris sebelumnya]
         
         Instruksi:
         1. Jawab dengan sopan, santai, dan singkat (seperti chat WA biasa).
