@@ -10,10 +10,22 @@ const MODEL_API_KEY = "AIzaSyDiGaHUJYYodUziYe9jr8g684wbdq-OMvg";
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
 // Kita pakai model 'flash' karena lebih cepat dan hemat untuk chat
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        
 
 // Inisialisasi WhatsApp Client
 const client = new Client({
     authStrategy: new LocalAuth(),
+    headless: true, // Wajib true di server
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', 
+            '--disable-gpu'
+        ],
     puppeteer: {
         args: ['--no-sandbox'] // Tambahan argumen agar stabil di beberapa OS
     }
