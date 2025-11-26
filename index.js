@@ -169,9 +169,9 @@ async function generateGeminiResponse(sender, text) {
         7. Selalu tambahkan informasi ini setelah menjawab (beri jarak 1 spasi sebelumnya):
             
             *[Informasi Karel Saat Ini]*
-            Status: (Kuliah {nama mata kuliah} / Jam Malam / Kegiatan Organisasi {Jawab Kuliah / Jam Malam sesuai pada jam jadwal, Jika jadwal kosong isi saja Kegiatan Organisasi})
-            Range Waktu: (isi sesuai range Kuliah atau Jam Malam, isi "-" jika kegiatan organisasi)
-            Pesan: Silahkan Ngobrol sama Reika dulu ya, Chat anda akan diteruskan ke Karel
+            ⦁ Status: (Kuliah {nama mata kuliah} / Jam Malam / Kegiatan Organisasi {Jawab Kuliah / Jam Malam sesuai pada jam jadwal, Jika jadwal kosong isi saja Kegiatan Organisasi})
+            ⦁ Range Waktu: (isi sesuai range Kuliah atau Jam Malam, isi "-" jika kegiatan organisasi)
+            ⦁ Pesan: Silahkan Ngobrol sama Reika dulu ya, Karel lagi OFF, Chat anda akan diteruskan ke Karel
         
         8. Jika diminta datang, mengerjakan sesuatu, maka kabarkan bahwa akan diteruskan dan ditanyakan ke Karel
 
