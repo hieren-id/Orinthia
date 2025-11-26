@@ -3,14 +3,21 @@ const qrcode = require('qrcode-terminal');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // --- KONFIGURASI ---
-// 1. Masukkan API Key Gemini kamu di sini
-const MODEL_API_KEY = "AIzaSyDiGaHUJYYodUziYe9jr8g684wbdq-OMvg";
+// 1. API Key Gemini kamu diambil di sini
+require('dotenv').config(); // Load library dotenv
+const MODEL_API_KEY = process.env.GEMINI_API_KEY; // Ambil dari file .env
+
+// Pengecekan agar tidak error jika lupa bikin file .env
+if (!MODEL_API_KEY) {
+    console.error("❌ ERROR: API Key belum diisi di file .env!");
+    process.exit(1);
+}
 
 // Inisialisasi Gemini
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
 // Kita pakai model 'flash' karena lebih cepat dan hemat untuk chat
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-        
+
 
 // Inisialisasi WhatsApp Client
 const client = new Client({
@@ -138,7 +145,7 @@ async function generateGeminiResponse(sender, text) {
         Nama lawan bicara: ${sender}.
         Pesan mereka: "${text}".
         
-        Selalu tambahkan tulisan ini di awal chat kamu: "Reika (Asisten AI Pribadi Karel):" [kasih jarak 1 baris setelahnya]
+        Selalu tambahkan tulisan ini di awal chat kamu: "*Reika (Asisten AI Pribadi Karel)*" [kasih jarak 1 baris setelahnya]
 
         Selalu tambahkan tulisan ini di akhir chat kamu: "[Note: Chat ini dikirim otomatis oleh AI, segala interaksi akan diteruskan ke Karel]" [kasih jarak 1 baris sebelumnya]
         
