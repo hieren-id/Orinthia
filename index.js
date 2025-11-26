@@ -15,7 +15,9 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 // Inisialisasi WhatsApp Client
 const client = new Client({
     authStrategy: new LocalAuth(),
-    headless: true, // Wajib true di server
+    puppeteer: {
+        headless: true,
+        // executablePath dihapus agar dia pakai yang dari node_modules
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -23,11 +25,9 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process', 
+            '--single-process',
             '--disable-gpu'
-        ],
-    puppeteer: {
-        args: ['--no-sandbox'] // Tambahan argumen agar stabil di beberapa OS
+        ]
     }
 });
 
