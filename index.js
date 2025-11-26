@@ -15,7 +15,7 @@ if (!MODEL_API_KEY) {
 // Inisialisasi Gemini
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
 
-// --- PERBAIKAN MODEL: Ganti ke 1.5-flash agar tidak error ---
+// --- PERBAIKAN MODEL: Gunakan 1.5-flash (2.5 belum tersedia) ---
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
 // Inisialisasi WhatsApp Client
@@ -96,44 +96,71 @@ client.on('message', async msg => {
     // --- LOGIKA UTAMA ---
 
     // 1. Jika Bot MATI: Simpan pesan (KECUALI GRUP) ke buffer
-    // Kita abaikan grup di buffer supaya ringkasan tidak penuh sampah grup
     if (!isBotActive && !msg.fromMe && !chat.isGroup) {
         const logEntry = `[${senderName}]: ${messageBody}`;
         messageBuffer.push(logEntry);
         console.log(`Disimpan ke buffer: ${logEntry}`);
     }
 
-    // 2. Jika Bot AKTIF: Balas pesan (PRIBADI & GRUP TAG)
-    // Perhatikan: Saya menghapus "!chat.isGroup" di sini agar bot bisa masuk ke logika grup
+    // 2. Jika Bot AKTIF: Balas pesan (PRIBADI & GRUP TAG/REPLY)
     if (isBotActive && !msg.fromMe) {
 
-        // --- FILTER KHUSUS GRUP: HANYA BALAS JIKA DI-TAG ---
+        // --- FILTER KHUSUS GRUP: HANYA BALAS JIKA DI-TAG ATAU DI-REPLY ---
         if (chat.isGroup) {
+            // Cek 1: Apakah di-tag?
             const mentions = await msg.getMentions();
-            // Cek apakah ID Bot (client.info.wid) ada di daftar mention
             const isBotMentioned = mentions.some(contact =>
                 contact.id._serialized === client.info.wid._serialized
             );
 
-            // Jika ini grup TAPI bot TIDAK ditag, STOP di sini.
-            if (!isBotMentioned) {
+            // Cek 2: Apakah me-reply pesan kita?
+            let isReplyingToMe = false;
+            if (msg.hasQuotedMsg) {
+                const quotedMsg = await msg.getQuotedMessage();
+                // quotedMsg.fromMe = true artinya pesan yang dikutip adalah pesan yang dikirim oleh akun ini (kita)
+                if (quotedMsg.fromMe) {
+                    isReplyingToMe = true;
+                }
+            }
+
+            // Jika TIDAK ditag DAN TIDAK mereply pesan kita -> STOP
+            if (!isBotMentioned && !isReplyingToMe) {
                 return;
             }
-            console.log(`Bot di-tag di Grup ${chat.name} oleh ${senderName}`);
+            console.log(`Bot merespon di Grup ${chat.name} (Tag: ${isBotMentioned}, Reply: ${isReplyingToMe})`);
         }
 
-        // --- PROSES MEMBALAS (Typing Indicator & AI) ---
+        // --- PROSES MEMBALAS ---
         if (typeof chat.sendStateTyping === 'function') {
             try { await chat.sendStateTyping(); } catch (err) { }
         }
 
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const aiReply = await generateGeminiResponse(senderName, messageBody);
+        // Minta jawaban lengkap dari Gemini (berisi separator |||)
+        const fullResponse = await generateGeminiResponse(senderName, messageBody);
 
-        // Gunakan msg.reply agar membalas thread pesan yang spesifik (meng-quote)
-        await msg.reply(aiReply);
-        console.log(`Membalas ${senderName}: ${aiReply}`);
+        // --- LOGIKA PEMISAH PESAN ---
+        // Kita pecah text berdasarkan tanda "|||"
+        const parts = fullResponse.split('|||');
+
+        // Bagian 1: Jawaban Chat (selalu ada)
+        const chatReply = parts[0].trim();
+        if (chatReply) {
+            await msg.reply(chatReply);
+        }
+
+        // Bagian 2: Info Status (hanya dikirim jika ada isinya)
+        if (parts.length > 1) {
+            const infoStatus = parts[1].trim();
+            // Beri jeda 1 detik agar urutan pesan enak dibaca
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Kirim info status (Gunakan sendMessage agar tidak me-reply balon chat sebelumnya, tapi pesan terpisah)
+            await client.sendMessage(msg.from, infoStatus);
+        }
+        
+        console.log(`Membalas ${senderName}`);
     }
 });
 
@@ -157,23 +184,22 @@ async function generateGeminiResponse(sender, text) {
         Nama lawan bicara: ${sender}.
         Pesan mereka: "${text}".
         
-        Selalu tambahkan tulisan ini di awal chat kamu: "*Reika (Asisten AI Pribadi Karel)*" [kasih jarak 1 baris setelahnya]
+        Instruksi Utama:
+        1. Jawab pesan dengan sopan, santai, dan singkat (seperti chat WA biasa).
+        2. Gunakan "saya" bukan "aku".
+        3. Selalu awali jawaban chat dengan: "*Reika (Asisten AI Pribadi Karel)*" [kasih jarak 1 baris]
         
-        Instruksi:
-        1. Jawab dengan sopan, santai, dan singkat (seperti chat WA biasa).
-        2. Jangan gunakan bahasa kaku/robot.
-        3. Jika mereka bertanya hal teknis, jawab semampunya.
-        4. Jangan gunakan salam pembuka yang berlebihan berulang-ulang.
-        5. Jangan pakai "aku" gunakanlah "saya"
-        6. Jika pesan yang dikirimkan berupa perintah atau informasi, maka kabarkan bahwa akan diteruskan ke Karel
-        7. Selalu tambahkan informasi ini setelah menjawab (beri jarak 1 spasi sebelumnya):
-            
-            *[Informasi Karel Saat Ini]*
-            ⦁ Status: (Kuliah {nama mata kuliah} / Jam Malam / Kegiatan Organisasi {Jawab Kuliah / Jam Malam sesuai pada jam jadwal, Jika jadwal kosong isi saja Kegiatan Organisasi})
-            ⦁ Range Waktu: (isi sesuai range Kuliah atau Jam Malam, isi "-" jika kegiatan organisasi)
-            ⦁ Pesan: Silahkan Ngobrol sama Reika dulu ya, Karel lagi OFF, Chat anda akan diteruskan ke Karel
+        Instruksi Pemisahan Pesan:
+        Setelah kamu selesai menulis jawaban chat, kamu WAJIB menulis tanda pemisah ini: "|||" (tiga garis tegak lurus).
+        Di bawah tanda "|||", barulah kamu menulis status Karel.
         
-        8. Jika diminta datang, mengerjakan sesuatu, maka kabarkan bahwa akan diteruskan dan ditanyakan ke Karel
+        Format Output yang WAJIB diikuti:
+        [Jawaban Chat Kamu Disini]
+        |||
+        *[Informasi Karel Saat Ini]*
+        ⦁ Status: (Isi sesuai jadwal di bawah. Jika kosong, isi "Kegiatan Organisasi")
+        ⦁ Range Waktu: (Isi jamnya, atau "-")
+        ⦁ Pesan: Silahkan Ngobrol sama Reika dulu ya, Karel lagi OFF, Chat anda akan diteruskan ke Karel
 
         [Jadwal Kegiatan Karel]
         Jadwal Rutinitas Karel:
@@ -197,7 +223,7 @@ async function generateGeminiResponse(sender, text) {
         Kamis
         • Uji Kualitas Perangkat Lunak: 14:50 - 17:45
 
-        Jawablah pesan tersebut:`;
+        Jawablah pesan tersebut sekarang:`;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
