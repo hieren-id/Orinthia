@@ -3,7 +3,6 @@ const qrcode = require('qrcode-terminal');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // --- KONFIGURASI ---
-// 1. API Key Gemini kamu diambil di sini
 require('dotenv').config(); // Load library dotenv
 const MODEL_API_KEY = process.env.GEMINI_API_KEY; // Ambil dari file .env
 
@@ -15,16 +14,15 @@ if (!MODEL_API_KEY) {
 
 // Inisialisasi Gemini
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
-// Kita pakai model 'flash' karena lebih cepat dan hemat untuk chat
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
+// --- PERBAIKAN MODEL: Ganti ke 1.5-flash agar tidak error ---
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
 // Inisialisasi WhatsApp Client
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        // executablePath dihapus agar dia pakai yang dari node_modules
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -54,26 +52,19 @@ client.on('ready', () => {
 });
 
 client.on('message', async msg => {
+    // --- FILTER BARU: ABAIKAN CHANNEL & STATUS ---
+    if (msg.from.includes('@newsletter') || msg.from === 'status@broadcast') {
+        return;
+    }
+
     const chat = await msg.getChat();
-    const contact = await msg.getContact();
-    const senderName = contact.pushname || contact.number;
+    // Ambil nama pengirim (Fallback yang aman)
+    let senderName = msg._data.notifyName || msg.from.split('@')[0];
+    if (!senderName) senderName = "Seseorang";
+
     const messageBody = msg.body;
 
-    // --- FILTER BARU: ABAIKAN CHANNEL & STATUS ---
-    // 1. Cek jika pesan dari Channel/Saluran (id berakhiran @newsletter)
-    if (msg.from.includes('@newsletter')) {
-        return; // Langsung berhenti, jangan diproses
-    }
-
-    // 2. Cek jika pesan adalah Status Update orang lain (id status@broadcast)
-    if (msg.from === 'status@broadcast') {
-        return; // Langsung berhenti
-    }
-
-    // --- COMMANDS PENGENDALI (Hanya merespon perintah dari kamu/pemilik) ---
-    // Gunakan msg.fromMe jika ingin trigger dari HP sendiri
-    // Gunakan pengecekan nomor jika ingin trigger dari HP lain
-
+    // --- COMMANDS PENGENDALI ---
     if (messageBody.toLowerCase() === '!aktif') {
         isBotActive = true;
         await msg.reply('🤖 Asisten Gemini AKTIF. Saya akan membalas pesan masuk.');
@@ -98,38 +89,49 @@ client.on('message', async msg => {
         const summary = await generateGeminiSummary(messageBuffer.join('\n'));
         await msg.reply(`📝 *Ringkasan Pesan Masuk:*\n\n${summary}`);
 
-        messageBuffer = []; // Kosongkan buffer setelah diringkas
+        messageBuffer = [];
         return;
     }
 
     // --- LOGIKA UTAMA ---
 
-    // 1. Jika Bot MATI: Simpan pesan orang lain ke buffer untuk diringkas nanti
+    // 1. Jika Bot MATI: Simpan pesan (KECUALI GRUP) ke buffer
+    // Kita abaikan grup di buffer supaya ringkasan tidak penuh sampah grup
     if (!isBotActive && !msg.fromMe && !chat.isGroup) {
-        // Format: [Nama Pengirim]: Isi Pesan
         const logEntry = `[${senderName}]: ${messageBody}`;
         messageBuffer.push(logEntry);
         console.log(`Disimpan ke buffer: ${logEntry}`);
     }
 
-    // 2. Jika Bot AKTIF: Balas pesan orang lain (Auto Reply)
-    if (isBotActive && !msg.fromMe && !chat.isGroup) {
+    // 2. Jika Bot AKTIF: Balas pesan (PRIBADI & GRUP TAG)
+    // Perhatikan: Saya menghapus "!chat.isGroup" di sini agar bot bisa masuk ke logika grup
+    if (isBotActive && !msg.fromMe) {
 
-        // --- PERBAIKAN: Bungkus dengan Try-Catch atau If ---
-        // Cek dulu apakah fungsi sendStateTyping ada di objek chat
-        if (typeof chat.sendStateTyping === 'function') {
-            try {
-                await chat.sendStateTyping();
-            } catch (err) {
-                console.log("Gagal mengirim status 'mengetik', tapi bot tetap jalan.");
+        // --- FILTER KHUSUS GRUP: HANYA BALAS JIKA DI-TAG ---
+        if (chat.isGroup) {
+            const mentions = await msg.getMentions();
+            // Cek apakah ID Bot (client.info.wid) ada di daftar mention
+            const isBotMentioned = mentions.some(contact =>
+                contact.id._serialized === client.info.wid._serialized
+            );
+
+            // Jika ini grup TAPI bot TIDAK ditag, STOP di sini.
+            if (!isBotMentioned) {
+                return;
             }
+            console.log(`Bot di-tag di Grup ${chat.name} oleh ${senderName}`);
         }
 
-        // Beri jeda sedikit (opsional, misal 2 detik)
+        // --- PROSES MEMBALAS (Typing Indicator & AI) ---
+        if (typeof chat.sendStateTyping === 'function') {
+            try { await chat.sendStateTyping(); } catch (err) { }
+        }
+
         await new Promise(resolve => setTimeout(resolve, 2000));
-        // ...
 
         const aiReply = await generateGeminiResponse(senderName, messageBody);
+
+        // Gunakan msg.reply agar membalas thread pesan yang spesifik (meng-quote)
         await msg.reply(aiReply);
         console.log(`Membalas ${senderName}: ${aiReply}`);
     }
@@ -139,13 +141,12 @@ client.on('message', async msg => {
 
 async function generateGeminiResponse(sender, text) {
     try {
-        // 1. AMBIL WAKTU REAL-TIME INDONESIA (WIB)
         const now = new Date();
         const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
         const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' };
 
-        const hariTanggal = now.toLocaleDateString('id-ID', optionsDate); // Contoh: Rabu, 26 November 2025
-        const jamSekarang = now.toLocaleTimeString('id-ID', optionsTime); // Contoh: 19:30
+        const hariTanggal = now.toLocaleDateString('id-ID', optionsDate);
+        const jamSekarang = now.toLocaleTimeString('id-ID', optionsTime);
 
         const prompt = `
         Konteks Waktu Saat Ini:
@@ -168,7 +169,7 @@ async function generateGeminiResponse(sender, text) {
         7. Selalu tambahkan informasi ini setelah menjawab (beri jarak 1 spasi sebelumnya):
             
             [Informasi Karel Saat Ini]
-            Status: (Kuliah/Jam Malam/Kegiatan Organisasi/Jawab Kuliah/Jam Malam pada jam terkait sesuai jadwal, Jika jadwal kosong isi saja Kegiatan Organisasi)
+            Status: (Kuliah+{nama mata kuliah}/Jam Malam/Kegiatan Organisasi {Jawab Kuliah/Jam Malam pada jam terkait sesuai jadwal, Jika jadwal kosong isi saja Kegiatan Organisasi})
             Range Waktu: (isi sesuai range Kuliah atau Jam Malam, isi "-" jika kegiatan organisasi)
             Pesan: Silahkan Ngobrol sama Reika dulu ya, Chat anda akan diteruskan ke Karel
         
