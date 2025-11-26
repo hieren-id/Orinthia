@@ -139,15 +139,19 @@ client.on('message', async msg => {
 
 async function generateGeminiResponse(sender, text) {
     try {
-        // Prompt Engineering agar gaya bahasa pas
+        // 1. AMBIL WAKTU REAL-TIME INDONESIA (WIB)
+        const now = new Date();
+        const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
+        const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' };
 
-        const now = new Date().toLocaleString("id-ID", {
-            timeZone: "Asia/Jakarta",
-            dateStyle: "full",
-            timeStyle: "short"
-        });
+        const hariTanggal = now.toLocaleDateString('id-ID', optionsDate); // Contoh: Rabu, 26 November 2025
+        const jamSekarang = now.toLocaleTimeString('id-ID', optionsTime); // Contoh: 19:30
 
         const prompt = `
+        Konteks Waktu Saat Ini:
+        - Hari/Tanggal: ${hariTanggal}
+        - Jam: ${jamSekarang} WIB
+
         Kamu adalah asisten pribadi Karel di WhatsApp.
         Nama lawan bicara: ${sender}.
         Pesan mereka: "${text}".
@@ -162,10 +166,12 @@ async function generateGeminiResponse(sender, text) {
         5. Jangan pakai "aku" gunakanlah "saya"
         6. Jika pesan yang dikirimkan berupa perintah atau informasi, maka kabarkan bahwa akan diteruskan ke Karel
         7. Selalu tambahkan informasi ini setelah menjawab (beri jarak 1 spasi sebelumnya):
+            
             [Informasi Karel Saat Ini]
             Status: (Kuliah/Jam Malam/Kegiatan Organisasi/Jawab Kuliah/Jam Malam pada jam terkait sesuai jadwal, Jika jadwal kosong isi saja Kegiatan Organisasi)
             Range Waktu: (isi sesuai range Kuliah atau Jam Malam, isi "-" jika kegiatan organisasi)
             Pesan: Silahkan Ngobrol sama Reika dulu ya, Chat anda akan diteruskan ke Karel
+        
         8. Jika diminta datang, mengerjakan sesuatu, maka kabarkan bahwa akan diteruskan dan ditanyakan ke Karel
 
         [Jadwal Kegiatan Karel]
