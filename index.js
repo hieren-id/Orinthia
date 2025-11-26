@@ -153,6 +153,8 @@ async function generateGeminiResponse(sender, text) {
         3. Jika mereka bertanya hal teknis, jawab semampunya.
         4. Jangan gunakan salam pembuka yang berlebihan berulang-ulang.
         5. Jangan pakai "aku" gunakanlah "saya"
+        6. Jika pesan yang dikirimkan berupa perintah atau informasi, maka kabarkan bahwa akan diteruskan ke Karel
+        7. Jika diminta datang, mengerjakan sesuatu, maka kabarkan bahwa akan diteruskan dan ditanyakan ke Karel
         
         Jawablah pesan tersebut:`;
 
