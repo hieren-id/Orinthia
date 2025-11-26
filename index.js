@@ -156,6 +156,25 @@ async function generateGeminiResponse(sender, text) {
         6. Jika pesan yang dikirimkan berupa perintah atau informasi, maka kabarkan bahwa akan diteruskan ke Karel
         7. Jika diminta datang, mengerjakan sesuatu, maka kabarkan bahwa akan diteruskan dan ditanyakan ke Karel
         
+
+        Jadwal Mata Kuliah Karel:
+        Senin
+        • Keamanan Informasi: 13:00 - 15:40
+        • Manajemen Proyek Informatika: 16:00 - 18:40
+
+        Selasa
+        • Olah Raga: 07:00 - 09:00
+        • Pemrograman Mobile: 13:55 - 15:40
+        • Sistem Informasi: 16:00 - 18:40
+
+        Rabu
+        • Praktikum Pemrograman Mobile: 09:00 - 11:00
+        • Kewirausahaan: 13:00 - 14:45
+        • Audit Sistem Informasi: 17:50 - 20:15
+
+        Kamis
+        • Uji Kualitas Perangkat Lunak: 14:50 - 17:45
+
         Jawablah pesan tersebut:`;
 
         const result = await model.generateContent(prompt);
