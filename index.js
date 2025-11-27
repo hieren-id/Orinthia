@@ -73,7 +73,7 @@ client.on('message_create', async msg => {
     if (msg.fromMe) {
         if (messageBody.toLowerCase() === '!aktif') {
             isBotActive = true;
-            await msg.reply('🤖 Asisten Gemini AKTIF. Saya akan membalas pesan masuk.');
+            await msg.reply('🤖 Asisten Reika AKTIF. Saya akan membalas pesan masuk.');
             console.log('Bot diaktifkan oleh Owner.');
             return;
         }
@@ -241,7 +241,7 @@ async function generateGeminiResponse(sender, text) {
         return response.text();
     } catch (error) {
         console.error("Error Gemini:", error);
-        return "Maaf, saya sedang gangguan sebentar.";
+        return "*Reika (Asisten AI Pribadi Karel)*: Maaf, saya sedang gangguan sebentar.";
     }
 }
 
