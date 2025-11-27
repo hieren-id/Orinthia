@@ -13,6 +13,7 @@ if (!MODEL_API_KEY) {
 
 // Inisialisasi Gemini
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
+// Gunakan 1.5-flash agar stabil
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Inisialisasi WhatsApp Client
@@ -37,10 +38,9 @@ const client = new Client({
 let isBotActive = false; 
 let messageBuffer = []; 
 
-// [FITUR BARU] Variable untuk mencatat waktu terakhir kirim status
-// Format: Map<ChatID, Timestamp>
+// Variable untuk mencatat waktu terakhir kirim status
 const statusCooldowns = new Map(); 
-const COOLDOWN_DURATION = 60 * 60 * 1000; // 1 Jam dalam milidetik
+const COOLDOWN_DURATION = 60 * 60 * 1000; // 1 Jam
 
 // --- EVENT HANDLERS ---
 
@@ -53,8 +53,11 @@ client.on('ready', () => {
     console.log('Bot Gemini Siap! Ketik "!aktif" di WA untuk menyalakan.');
 });
 
-client.on('message', async msg => {
-    if (msg.from.includes('@newsletter') || msg.from === 'status@broadcast') {
+// 'message_create' mendeteksi pesan masuk DAN pesan yang kamu kirim sendiri.
+client.on('message_create', async msg => {
+    
+    // Filter Saluran & Status Update
+    if (msg.from.includes('@newsletter') || msg.from === 'status@broadcast' || msg.to === 'status@broadcast') {
         return;
     }
 
@@ -65,44 +68,48 @@ client.on('message', async msg => {
     const messageBody = msg.body;
 
     // --- COMMANDS PENGENDALI ---
-    if (messageBody.toLowerCase() === '!aktif') {
-        isBotActive = true;
-        await msg.reply('🤖 Asisten Gemini AKTIF. Saya akan membalas pesan masuk.');
-        console.log('Bot diaktifkan.');
-        return;
-    }
-
-    if (messageBody.toLowerCase() === '!mati') {
-        isBotActive = false;
-        await msg.reply('😴 Asisten Gemini MATI. Silakan handle chat sendiri.');
-        console.log('Bot dimatikan.');
-        return;
-    }
-
-    if (messageBody.toLowerCase() === '!ringkasan' && msg.fromMe) {
-        if (messageBuffer.length === 0) {
-            await msg.reply('Belum ada pesan tersimpan untuk diringkas.');
+    // MODIFIKASI: Hanya cek msg.fromMe (Pesan dari Owner).
+    // Bot akan bereaksi dimanapun kamu mengetik perintah ini (di Grup, Chat Teman, atau Note to Self).
+    if (msg.fromMe) {
+        if (messageBody.toLowerCase() === '!aktif') {
+            isBotActive = true;
+            await msg.reply('🤖 Asisten Gemini AKTIF. Saya akan membalas pesan masuk.');
+            console.log('Bot diaktifkan oleh Owner.');
             return;
         }
 
-        await msg.reply('Sedang menyusun ringkasan...');
-        const summary = await generateGeminiSummary(messageBuffer.join('\n'));
-        await msg.reply(`📝 *Ringkasan Pesan Masuk:*\n\n${summary}`);
+        if (messageBody.toLowerCase() === '!mati') {
+            isBotActive = false;
+            await msg.reply('😴 Asisten Gemini MATI. Silakan handle chat sendiri.');
+            console.log('Bot dimatikan oleh Owner.');
+            return;
+        }
 
-        messageBuffer = [];
-        return;
+        if (messageBody.toLowerCase() === '!ringkasan') {
+            if (messageBuffer.length === 0) {
+                await msg.reply('Belum ada pesan tersimpan untuk diringkas.');
+                return;
+            }
+
+            await msg.reply('Sedang menyusun ringkasan...');
+            const summary = await generateGeminiSummary(messageBuffer.join('\n'));
+            await msg.reply(`📝 *Ringkasan Pesan Masuk:*\n\n${summary}`);
+
+            messageBuffer = [];
+            return;
+        }
     }
 
-    // --- LOGIKA UTAMA ---
+    // --- LOGIKA UTAMA (Hanya untuk pesan orang lain) ---
 
-    // 1. Jika Bot MATI: Simpan pesan (KECUALI GRUP) ke buffer
+    // 1. Jika Bot MATI: Simpan pesan orang lain (KECUALI GRUP) ke buffer
     if (!isBotActive && !msg.fromMe && !chat.isGroup) {
         const logEntry = `[${senderName}]: ${messageBody}`;
         messageBuffer.push(logEntry);
         console.log(`Disimpan ke buffer: ${logEntry}`);
     }
 
-    // 2. Jika Bot AKTIF: Balas pesan (PRIBADI & GRUP TAG/REPLY)
+    // 2. Jika Bot AKTIF: Balas pesan orang lain (PRIBADI & GRUP TAG/REPLY)
     if (isBotActive && !msg.fromMe) {
 
         // --- FILTER KHUSUS GRUP ---
@@ -115,6 +122,7 @@ client.on('message', async msg => {
             let isReplyingToMe = false;
             if (msg.hasQuotedMsg) {
                 const quotedMsg = await msg.getQuotedMessage();
+                // quotedMsg.fromMe = true artinya pesan yang dikutip adalah pesan kita
                 if (quotedMsg.fromMe) {
                     isReplyingToMe = true;
                 }
@@ -151,19 +159,16 @@ client.on('message', async msg => {
             const now = Date.now();
             const lastSentTime = statusCooldowns.get(chatId) || 0; // Waktu terakhir kirim (default 0)
 
-            // Cek selisih waktu
+            // Cek selisih waktu (1 Jam)
             if (now - lastSentTime > COOLDOWN_DURATION) {
-                // Jika sudah lebih dari 1 jam (atau belum pernah), KIRIM.
                 const infoStatus = parts[1].trim();
                 
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 await client.sendMessage(msg.from, infoStatus);
                 
-                // Catat waktu pengiriman sekarang
                 statusCooldowns.set(chatId, now);
                 console.log(`Status Info dikirim ke ${senderName} (Cooldown Reset)`);
             } else {
-                // Jika belum 1 jam, JANGAN KIRIM.
                 console.log(`Status Info di-SKIP untuk ${senderName} (Masih Cooldown)`);
             }
         }
