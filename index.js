@@ -234,9 +234,9 @@ async function generateGeminiResponse(sender, text) {
         [Jawaban Chat Kamu Disini]
         |||
         *[Informasi Karel Saat Ini]*
-        ⦁ Status: (Isi sesuai jadwal di bawah. Jika kosong, isi "Kegiatan Organisasi")
+        ⦁ Status: (Isi sesuai jadwal di bawah. Jika kosong, isi "Kegiatan Organisasi / Nugas")
         ⦁ Range Waktu: (Isi jamnya, atau "-")
-        ⦁ Pesan: Silahkan Ngobrol sama Reika dulu ya, Karel lagi OFF, Chat anda akan diteruskan ke Karel
+        ⦁ Pesan: Karel sedang OFF dan tidak bisa menjawab pesan anda dalam waktu dekat, Silahkan berbicara dengan Asisten Reika, Chat anda akan diringkas dan diteruskan ke Karel
 
         [Jadwal Kegiatan Karel]
         Jadwal Rutinitas Karel:
