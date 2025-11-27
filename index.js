@@ -68,8 +68,6 @@ client.on('message_create', async msg => {
     const messageBody = msg.body;
 
     // --- COMMANDS PENGENDALI ---
-    // MODIFIKASI: Hanya cek msg.fromMe (Pesan dari Owner).
-    // Bot akan bereaksi dimanapun kamu mengetik perintah ini (di Grup, Chat Teman, atau Note to Self).
     if (msg.fromMe) {
         if (messageBody.toLowerCase() === '!aktif') {
             isBotActive = true;
@@ -80,7 +78,7 @@ client.on('message_create', async msg => {
 
         if (messageBody.toLowerCase() === '!mati') {
             isBotActive = false;
-            await msg.reply('😴 Asisten Gemini MATI. Silakan handle chat sendiri.');
+            await msg.reply('😴 Asisten Reika MATI. Silakan handle chat sendiri.');
             console.log('Bot dimatikan oleh Owner.');
             return;
         }
@@ -93,26 +91,55 @@ client.on('message_create', async msg => {
 
             await msg.reply('Sedang menyusun ringkasan...');
             const summary = await generateGeminiSummary(messageBuffer.join('\n'));
-            await msg.reply(`📝 *Ringkasan Pesan Masuk:*\n\n${summary}`);
+            await msg.reply(`📝 *Ringkasan Pesan Selama Bot Aktif:*\n\n${summary}`);
 
+            // RESET BUFFER SETELAH RINGKASAN DIKIRIM
             messageBuffer = [];
+            console.log('Buffer pesan telah di-reset.');
             return;
         }
     }
 
-    // --- LOGIKA UTAMA (Hanya untuk pesan orang lain) ---
+    // --- LOGIKA BUFFERING (Simpan Pesan ke Memori) ---
+    // MODIFIKASI: Hanya simpan jika BOT AKTIF
+    
+    if (isBotActive) {
+        let shouldBuffer = false;
+        
+        // Cek Kriteria Grup
+        if (chat.isGroup) {
+            const mentions = await msg.getMentions();
+            const isBotMentioned = mentions.some(contact => contact.id._serialized === client.info.wid._serialized);
+            
+            let isReplyingToMe = false;
+            if (msg.hasQuotedMsg) {
+                const quotedMsg = await msg.getQuotedMessage();
+                // quotedMsg.fromMe = true artinya pesan yang dikomentari adalah pesan kita (Bot/Owner)
+                if (quotedMsg.fromMe) isReplyingToMe = true;
+            }
 
-    // 1. Jika Bot MATI: Simpan pesan orang lain (KECUALI GRUP) ke buffer
-    if (!isBotActive && !msg.fromMe && !chat.isGroup) {
-        const logEntry = `[${senderName}]: ${messageBody}`;
-        messageBuffer.push(logEntry);
-        console.log(`Disimpan ke buffer: ${logEntry}`);
+            // Di grup, hanya catat jika ada interaksi langsung (Tag/Reply)
+            if (isBotMentioned || isReplyingToMe) shouldBuffer = true;
+        } else {
+            // Private Chat (Selalu simpan semua pesan di PC saat bot aktif)
+            shouldBuffer = true;
+        }
+
+        // Eksekusi Simpan ke Buffer (Jangan simpan command !ringkasan itu sendiri)
+        if (shouldBuffer && messageBody.toLowerCase() !== '!ringkasan') {
+            const nameLabel = msg.fromMe ? "Anda (Owner)" : senderName;
+            const bufferEntry = `[${nameLabel}]: ${messageBody}`;
+            messageBuffer.push(bufferEntry);
+            console.log(`Buffered: ${bufferEntry}`);
+        }
     }
+
+    // --- LOGIKA AUTO REPLY (Hanya untuk pesan orang lain) ---
 
     // 2. Jika Bot AKTIF: Balas pesan orang lain (PRIBADI & GRUP TAG/REPLY)
     if (isBotActive && !msg.fromMe) {
 
-        // --- FILTER KHUSUS GRUP ---
+        // --- FILTER KHUSUS GRUP (Cek Ulang untuk Auto Reply) ---
         if (chat.isGroup) {
             const mentions = await msg.getMentions();
             const isBotMentioned = mentions.some(contact =>
@@ -122,7 +149,6 @@ client.on('message_create', async msg => {
             let isReplyingToMe = false;
             if (msg.hasQuotedMsg) {
                 const quotedMsg = await msg.getQuotedMessage();
-                // quotedMsg.fromMe = true artinya pesan yang dikutip adalah pesan kita
                 if (quotedMsg.fromMe) {
                     isReplyingToMe = true;
                 }
@@ -241,7 +267,7 @@ async function generateGeminiResponse(sender, text) {
         return response.text();
     } catch (error) {
         console.error("Error Gemini:", error);
-        return "*Reika (Asisten AI Pribadi Karel)*: Maaf, saya sedang gangguan sebentar.";
+        return "*Reika (Asisten AI Pribadi Karel):* Maaf, saya sedang gangguan sebentar.";
     }
 }
 
