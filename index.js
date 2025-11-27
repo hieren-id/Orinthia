@@ -37,7 +37,7 @@ let messageBuffer = [];
 
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
-const DEBOUNCE_TIME = 10000; 
+const DEBOUNCE_TIME = 7000; 
 
 const statusCooldowns = new Map(); 
 const COOLDOWN_DURATION = 60 * 60 * 1000; 
