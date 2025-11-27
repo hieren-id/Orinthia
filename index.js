@@ -15,8 +15,7 @@ if (!MODEL_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
-// Gunakan 'latest' atau 'gemini-pro' jika error 404 berlanjut
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -102,16 +101,7 @@ client.on('message_create', async msg => {
             return; 
         }
 
-        // 2. INPUT CATATAN (FLOW KHUSUS)
-        if (isWaitingForNote) {
-            urgentNote = messageBody;
-            fs.writeFileSync('./urgent_note.txt', urgentNote);
-            isWaitingForNote = false; 
-            await msg.reply(`✅ Catatan tersimpan: "${urgentNote}"\n\nInfo ini akan meng-override jadwal kuliah/rutinitas.`);
-            return; 
-        }
-
-        // 3. MANAJEMEN CATATAN MENDESAK
+        // 2. MANAJEMEN COMMANDS CATATAN
         if (messageBody.toLowerCase() === '!ctt') {
             isWaitingForNote = true;
             await msg.reply('✍️ Silahkan tambahkan catatan mendesak. Kirim pesan selanjutnya sebagai isi catatan.');
@@ -120,12 +110,12 @@ client.on('message_create', async msg => {
 
         if (messageBody.toLowerCase() === '!ctthps') {
             urgentNote = "";
+            isWaitingForNote = false; 
             if (fs.existsSync('./urgent_note.txt')) fs.unlinkSync('./urgent_note.txt');
             await msg.reply('🗑️ Catatan mendesak dihapus. Kembali mengikuti jadwal normal.');
             return;
         }
 
-        // [BARU] FITUR CEK CATATAN
         if (messageBody.toLowerCase() === '!cekctt') {
             if (urgentNote && urgentNote.trim().length > 0) {
                 await msg.reply(`📝 *Catatan Mendesak Saat Ini:*\n"${urgentNote}"\n\n(Bot sedang mengabaikan jadwal rutin dan menggunakan status ini).`);
@@ -133,6 +123,23 @@ client.on('message_create', async msg => {
                 await msg.reply('✅ Tidak ada catatan mendesak yang aktif.\nBot berjalan sesuai jadwal rutin.');
             }
             return;
+        }
+
+        // 3. INPUT CATATAN (FLOW KHUSUS)
+        if (isWaitingForNote) {
+            
+            // --- FIX ERROR NYIMPEN PESAN SENDIRI ---
+            // Cek apakah pesan ini adalah instruksi dari bot? Jika ya, ABAIKAN.
+            if (messageBody.includes('Silahkan tambahkan catatan mendesak')) {
+                return;
+            }
+            // ----------------------------------------
+
+            urgentNote = messageBody;
+            fs.writeFileSync('./urgent_note.txt', urgentNote);
+            isWaitingForNote = false; 
+            await msg.reply(`✅ Catatan tersimpan: "${urgentNote}"\n\nInfo ini akan meng-override jadwal kuliah/rutinitas.`);
+            return; 
         }
 
         // 4. COMMAND UMUM
