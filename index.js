@@ -3,10 +3,9 @@ const qrcode = require('qrcode-terminal');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // --- KONFIGURASI ---
-require('dotenv').config(); // Load library dotenv
-const MODEL_API_KEY = process.env.GEMINI_API_KEY; // Ambil dari file .env
+require('dotenv').config(); 
+const MODEL_API_KEY = process.env.GEMINI_API_KEY; 
 
-// Pengecekan agar tidak error jika lupa bikin file .env
 if (!MODEL_API_KEY) {
     console.error("❌ ERROR: API Key belum diisi di file .env!");
     process.exit(1);
@@ -14,9 +13,7 @@ if (!MODEL_API_KEY) {
 
 // Inisialisasi Gemini
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
-
-// --- PERBAIKAN MODEL: Gunakan 1.5-flash (2.5 belum tersedia) ---
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Inisialisasi WhatsApp Client
 const client = new Client({
@@ -37,8 +34,13 @@ const client = new Client({
 });
 
 // --- STATE VARIABLES ---
-let isBotActive = false; // Status bot (Aktif/Mati)
-let messageBuffer = [];  // Penampung pesan saat offline
+let isBotActive = false; 
+let messageBuffer = []; 
+
+// [FITUR BARU] Variable untuk mencatat waktu terakhir kirim status
+// Format: Map<ChatID, Timestamp>
+const statusCooldowns = new Map(); 
+const COOLDOWN_DURATION = 60 * 60 * 1000; // 1 Jam dalam milidetik
 
 // --- EVENT HANDLERS ---
 
@@ -52,13 +54,11 @@ client.on('ready', () => {
 });
 
 client.on('message', async msg => {
-    // --- FILTER BARU: ABAIKAN CHANNEL & STATUS ---
     if (msg.from.includes('@newsletter') || msg.from === 'status@broadcast') {
         return;
     }
 
     const chat = await msg.getChat();
-    // Ambil nama pengirim (Fallback yang aman)
     let senderName = msg._data.notifyName || msg.from.split('@')[0];
     if (!senderName) senderName = "Seseorang";
 
@@ -105,29 +105,25 @@ client.on('message', async msg => {
     // 2. Jika Bot AKTIF: Balas pesan (PRIBADI & GRUP TAG/REPLY)
     if (isBotActive && !msg.fromMe) {
 
-        // --- FILTER KHUSUS GRUP: HANYA BALAS JIKA DI-TAG ATAU DI-REPLY ---
+        // --- FILTER KHUSUS GRUP ---
         if (chat.isGroup) {
-            // Cek 1: Apakah di-tag?
             const mentions = await msg.getMentions();
             const isBotMentioned = mentions.some(contact =>
                 contact.id._serialized === client.info.wid._serialized
             );
 
-            // Cek 2: Apakah me-reply pesan kita?
             let isReplyingToMe = false;
             if (msg.hasQuotedMsg) {
                 const quotedMsg = await msg.getQuotedMessage();
-                // quotedMsg.fromMe = true artinya pesan yang dikutip adalah pesan yang dikirim oleh akun ini (kita)
                 if (quotedMsg.fromMe) {
                     isReplyingToMe = true;
                 }
             }
 
-            // Jika TIDAK ditag DAN TIDAK mereply pesan kita -> STOP
             if (!isBotMentioned && !isReplyingToMe) {
                 return;
             }
-            console.log(`Bot merespon di Grup ${chat.name} (Tag: ${isBotMentioned}, Reply: ${isReplyingToMe})`);
+            console.log(`Bot merespon di Grup ${chat.name}`);
         }
 
         // --- PROSES MEMBALAS ---
@@ -137,30 +133,40 @@ client.on('message', async msg => {
 
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Minta jawaban lengkap dari Gemini (berisi separator |||)
+        // Minta jawaban lengkap dari Gemini
         const fullResponse = await generateGeminiResponse(senderName, messageBody);
 
-        // --- LOGIKA PEMISAH PESAN ---
-        // Kita pecah text berdasarkan tanda "|||"
+        // --- LOGIKA PEMISAH PESAN & COOLDOWN ---
         const parts = fullResponse.split('|||');
 
-        // Bagian 1: Jawaban Chat (selalu ada)
+        // Bagian 1: Jawaban Chat (Selalu dikirim)
         const chatReply = parts[0].trim();
         if (chatReply) {
             await msg.reply(chatReply);
         }
 
-        // Bagian 2: Info Status (hanya dikirim jika ada isinya)
+        // Bagian 2: Info Status (Hanya dikirim jika Cooldown habis)
         if (parts.length > 1) {
-            const infoStatus = parts[1].trim();
-            // Beri jeda 1 detik agar urutan pesan enak dibaca
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Kirim info status (Gunakan sendMessage agar tidak me-reply balon chat sebelumnya, tapi pesan terpisah)
-            await client.sendMessage(msg.from, infoStatus);
+            const chatId = msg.from; // ID Unik Pengirim atau Grup
+            const now = Date.now();
+            const lastSentTime = statusCooldowns.get(chatId) || 0; // Waktu terakhir kirim (default 0)
+
+            // Cek selisih waktu
+            if (now - lastSentTime > COOLDOWN_DURATION) {
+                // Jika sudah lebih dari 1 jam (atau belum pernah), KIRIM.
+                const infoStatus = parts[1].trim();
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await client.sendMessage(msg.from, infoStatus);
+                
+                // Catat waktu pengiriman sekarang
+                statusCooldowns.set(chatId, now);
+                console.log(`Status Info dikirim ke ${senderName} (Cooldown Reset)`);
+            } else {
+                // Jika belum 1 jam, JANGAN KIRIM.
+                console.log(`Status Info di-SKIP untuk ${senderName} (Masih Cooldown)`);
+            }
         }
-        
-        console.log(`Membalas ${senderName}`);
     }
 });
 
