@@ -6,8 +6,8 @@ const qrcode = require('qrcode-terminal');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const fs = require('fs');
 
-require('dotenv').config(); 
-const MODEL_API_KEY = process.env.GEMINI_API_KEY; 
+require('dotenv').config();
+const MODEL_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!MODEL_API_KEY) {
     console.error("❌ ERROR: API Key belum diisi di file .env!");
@@ -26,10 +26,10 @@ const client = new Client({
 });
 
 // --- STATE VARIABLES ---
-let isBotActive = false; 
-let messageBuffer = []; 
-let isWaitingForNote = false; 
-let urgentNote = ""; 
+let isBotActive = false;
+let messageBuffer = [];
+let isWaitingForNote = false;
+let urgentNote = "";
 
 // Load catatan saat startup
 if (fs.existsSync('./urgent_note.txt')) {
@@ -39,9 +39,9 @@ if (fs.existsSync('./urgent_note.txt')) {
 
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
-const DEBOUNCE_TIME = 5000; 
-const statusCooldowns = new Map(); 
-const COOLDOWN_DURATION = 60 * 60 * 1000; 
+const DEBOUNCE_TIME = 5000;
+const statusCooldowns = new Map();
+const COOLDOWN_DURATION = 60 * 60 * 1000;
 
 // --- EVENT HANDLERS ---
 
@@ -55,7 +55,7 @@ client.on('ready', () => {
 });
 
 client.on('message_create', async msg => {
-    
+
     if (msg.from.includes('@newsletter') || msg.from === 'status@broadcast' || msg.to === 'status@broadcast') return;
 
     const chat = await msg.getChat();
@@ -68,12 +68,12 @@ client.on('message_create', async msg => {
 
         // 1. FITUR CHAT DENGAN REIKA (!reika)
         if (messageBody.toLowerCase().startsWith('!reika')) {
-            const userQuery = messageBody.replace(/^!reika\s*/i, ''); 
+            const userQuery = messageBody.replace(/^!reika\s*/i, '');
             if (!userQuery) {
                 await msg.reply("Halo Karel! Mau ngobrol apa sama Reika?");
                 return;
             }
-            const chatIdContext = msg.to; 
+            const chatIdContext = msg.to;
             messageBuffer.push({
                 chatId: chatIdContext,
                 text: `[Karel (Owner)]: ${userQuery}`,
@@ -82,7 +82,7 @@ client.on('message_create', async msg => {
 
             const historyLogs = messageBuffer
                 .filter(item => item.chatId === chatIdContext)
-                .slice(-20) 
+                .slice(-20)
                 .map(item => item.text)
                 .join('\n');
 
@@ -98,7 +98,7 @@ client.on('message_create', async msg => {
                     timestamp: Date.now()
                 });
             }
-            return; 
+            return;
         }
 
         // 2. MANAJEMEN COMMANDS CATATAN
@@ -110,7 +110,7 @@ client.on('message_create', async msg => {
 
         if (messageBody.toLowerCase() === '!ctthps') {
             urgentNote = "";
-            isWaitingForNote = false; 
+            isWaitingForNote = false;
             if (fs.existsSync('./urgent_note.txt')) fs.unlinkSync('./urgent_note.txt');
             await msg.reply('🗑️ Catatan mendesak dihapus. Kembali mengikuti jadwal normal.');
             return;
@@ -127,7 +127,7 @@ client.on('message_create', async msg => {
 
         // 3. INPUT CATATAN (FLOW KHUSUS)
         if (isWaitingForNote) {
-            
+
             // --- FIX ERROR NYIMPEN PESAN SENDIRI ---
             // Cek apakah pesan ini adalah instruksi dari bot? Jika ya, ABAIKAN.
             if (messageBody.includes('Silahkan tambahkan catatan mendesak')) {
@@ -137,9 +137,9 @@ client.on('message_create', async msg => {
 
             urgentNote = messageBody;
             fs.writeFileSync('./urgent_note.txt', urgentNote);
-            isWaitingForNote = false; 
+            isWaitingForNote = false;
             await msg.reply(`✅ Catatan tersimpan: "${urgentNote}"\n\nInfo ini akan meng-override jadwal kuliah/rutinitas.`);
-            return; 
+            return;
         }
 
         // 4. COMMAND UMUM
@@ -196,19 +196,19 @@ client.on('message_create', async msg => {
     }
 
     if (isBotActive && !msg.fromMe) {
-        
+
         let specialContact = null;
         try {
             delete require.cache[require.resolve('./contacts')];
             const contactsList = require('./contacts');
             const incomingNumber = msg.from.replace('@c.us', '');
-            specialContact = contactsList.find(c => 
-                (c.number && incomingNumber === c.number) || 
+            specialContact = contactsList.find(c =>
+                (c.number && incomingNumber === c.number) ||
                 (c.name && senderName.toLowerCase().includes(c.name.toLowerCase()))
             );
             if (specialContact) console.log(`✨ Kontak Spesial: ${specialContact.name}`);
-        } catch (err) {}
-        
+        } catch (err) { }
+
         if (chat.isGroup) {
             const mentions = await msg.getMentions();
             const isBotMentioned = mentions.some(c => c.id._serialized === client.info.wid._serialized);
@@ -222,8 +222,8 @@ client.on('message_create', async msg => {
 
             console.log(`Bot merespon di Grup ${chat.name}`);
             await processAIResponse(msg, senderName, messageBody, chat.id._serialized, specialContact);
-        } 
-        
+        }
+
         else {
             const chatId = msg.from;
             if (privateDebounceTimers.has(chatId)) clearTimeout(privateDebounceTimers.get(chatId));
@@ -236,11 +236,11 @@ client.on('message_create', async msg => {
                 const queue = privateMessageQueues.get(chatId);
                 if (!queue || queue.length === 0) return;
                 const lastMsg = queue[queue.length - 1];
-                
+
                 privateMessageQueues.delete(chatId);
                 privateDebounceTimers.delete(chatId);
 
-                await processAIResponse(lastMsg, senderName, "", chatId, specialContact); 
+                await processAIResponse(lastMsg, senderName, "", chatId, specialContact);
 
             }, DEBOUNCE_TIME);
 
@@ -253,7 +253,7 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     const chat = await msgInstance.getChat();
     const historyLogs = messageBuffer
         .filter(item => item.chatId === chatIdContext)
-        .slice(-20) 
+        .slice(-20)
         .map(item => item.text)
         .join('\n');
 
@@ -268,9 +268,9 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     if (chatReply) await msgInstance.reply(chatReply);
 
     if (parts.length > 1) {
-        const chatId = msgInstance.from; 
+        const chatId = msgInstance.from;
         const now = Date.now();
-        const lastSentTime = statusCooldowns.get(chatId) || 0; 
+        const lastSentTime = statusCooldowns.get(chatId) || 0;
 
         if (now - lastSentTime > COOLDOWN_DURATION) {
             const infoStatus = parts[1].trim();
@@ -305,7 +305,7 @@ async function generateGeminiResponse(sender, text, historyLogs, specialContact)
 
 async function generateGeminiSummary(textData) {
     try {
-        const prompt = `Ringkasan chat WhatsApp offline:\n${textData}\n\nBuat bullet points per pengirim. Bahasa Indonesia.`;
+        const prompt = `Ringkasan chat WhatsApp offline:\n${textData}\n\nTugas Kamu (Reika) adalah memaparkan semua chat yang tersimpan selama kamu aktif, posisikan dirimu sebagai Reika yang sedang memaparkan ringkasannya, Buat bullet points per pengirim. Buat juga dan pisahkan bagian yang kamu anggap Penting, Buat dan pisahkan juga hal-hal yang aku (Karel) inginkan untuk dicatat, Bahasa Indonesia.`;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         return response.text();
@@ -324,11 +324,11 @@ client.on('incoming_call', async call => {
         delete require.cache[require.resolve('./contacts')];
         const contactsList = require('./contacts');
         specialContact = contactsList.find(c => c.number === callerNumber);
-    } catch (err) {}
+    } catch (err) { }
 
     try {
-        const toneInstruction = specialContact 
-            ? `Ini adalah ${specialContact.role} (${specialContact.name}). GAYA BICARA: ${specialContact.instruction}` 
+        const toneInstruction = specialContact
+            ? `Ini adalah ${specialContact.role} (${specialContact.name}). GAYA BICARA: ${specialContact.instruction}`
             : `Ini teman biasa. GAYA BICARA: Santai, gaul, asyik, pakai gue/elo.`;
 
         const prompt = `Situasi: Seseorang sedang menelpon Karel di WhatsApp.
