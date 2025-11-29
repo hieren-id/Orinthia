@@ -1,18 +1,8 @@
-const { genAI } = require('../core/gemini');
+const model = require('../core/gemini');
 const { getSystemPrompt } = require('../data/prompt');
-const { toolsDefinition, toolsImplementation } = require('./toolService');
-const { getUrgentNote } = require('../database/db');
+const { searchRelevantContext } = require('./ragService');
 
-// Initialize model with tools
-const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    tools: [
-        { googleSearch: {} },
-        ...toolsDefinition
-    ]
-});
-
-async function generateAgenticResponse(sender, text, historyLogs, specialContact, mediaData) {
+async function generateGeminiResponse(sender, text, historyLogs, specialContact, mediaData, urgentNote) {
     try {
         const now = new Date();
         const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
@@ -25,73 +15,36 @@ async function generateAgenticResponse(sender, text, historyLogs, specialContact
         delete require.cache[promptPath];
         const { getSystemPrompt } = require(promptPath);
 
-        const currentUrgentNote = getUrgentNote();
+        // RAG Retrieval
+        let retrievedContext = "";
+        if (text && text.length > 5) {
+            retrievedContext = await searchRelevantContext(text);
+        }
 
-        // Initial System Prompt (Context is empty initially, retrieved via tool if needed)
-        const systemPrompt = getSystemPrompt(hariTanggal, jamSekarang, sender, historyLogs, currentUrgentNote, specialContact, "");
+        const systemPrompt = getSystemPrompt(hariTanggal, jamSekarang, sender, historyLogs, urgentNote, specialContact, retrievedContext);
 
-        const chat = model.startChat({
-            history: [
-                { role: "user", parts: [{ text: systemPrompt }] }
-            ]
-        });
+        const payload = [];
+        payload.push(systemPrompt);
 
-        const userParts = [];
         if (mediaData) {
-            userParts.push({
+            payload.push({
                 inlineData: {
                     mimeType: mediaData.mimetype,
                     data: mediaData.data
                 }
             });
-            userParts.push({ text: "Lihat gambar ini." });
-        }
-        if (text) {
-            userParts.push({ text: text });
-        } else if (userParts.length === 0) {
-            // Jika tidak ada text dan tidak ada media (misal dari debounce),
-            // pancing AI untuk merespons berdasarkan history yang sudah ada di system prompt.
-            userParts.push({ text: "Silahkan respons pesan terakhir dari riwayat chat di atas." });
+            payload.push("Ini adalah gambar yang dikirim oleh lawan bicara. Jelaskan atau tanggapi gambar ini sesuai konteks chat.");
         }
 
-        let result = await chat.sendMessage(userParts);
-        let response = await result.response;
+        if (text) payload.push(text);
 
-        // Function Calling Loop
-        while (response.functionCalls()) {
-            const calls = response.functionCalls();
-            const functionResponses = [];
-
-            for (const call of calls) {
-                const fnName = call.name;
-                const fnArgs = call.args;
-
-                console.log(`🛠️ Reika memanggil alat: ${fnName}`, fnArgs);
-
-                let functionResult;
-                if (toolsImplementation[fnName]) {
-                    functionResult = await toolsImplementation[fnName](fnArgs);
-                } else {
-                    functionResult = { error: "Fungsi tidak ditemukan" };
-                }
-
-                functionResponses.push({
-                    functionResponse: {
-                        name: fnName,
-                        response: functionResult
-                    }
-                });
-            }
-
-            result = await chat.sendMessage(functionResponses);
-            response = await result.response;
-        }
-
+        const result = await model.generateContent(payload);
+        const response = await result.response;
         return response.text();
 
     } catch (error) {
-        console.error("Error Agentic Loop:", error);
-        return "Maaf, sistem saya sedang mengalami gangguan teknis.";
+        console.error("Error Gemini:", error);
+        return "*Reika (Asisten AI Pribadi Karel):* Maaf, mata saya agak buram (Error memproses gambar/pesan).";
     }
 }
 
@@ -126,7 +79,7 @@ async function generateCallResponse(callerNumber, specialContact) {
 }
 
 module.exports = {
-    generateAgenticResponse,
+    generateGeminiResponse,
     generateGeminiSummary,
     generateCallResponse
 };

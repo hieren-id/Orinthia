@@ -1,6 +1,6 @@
 const client = require('../core/whatsapp');
 const { saveDatabase, saveUrgentNote, deleteUrgentNote, getUrgentNote, getMessageBuffer, addMessageToBuffer, clearMessageBuffer } = require('../database/db');
-const { generateAgenticResponse, generateGeminiSummary } = require('../services/aiService');
+const { generateGeminiResponse, generateGeminiSummary } = require('../services/aiService');
 const { getSpecialContact } = require('../services/contactService');
 const { setBotStatus, getBotStatus } = require('../utils/state');
 
@@ -157,8 +157,7 @@ async function handleOwnerCommands(msg, messageBody, chat) {
             .map(item => item.text)
             .join('\n');
 
-        // Use generateAgenticResponse
-        const responseText = await generateAgenticResponse("Karel (Owner)", userQuery, historyLogs, null, media);
+        const responseText = await generateGeminiResponse("Karel (Owner)", userQuery, historyLogs, null, media, getUrgentNote());
 
         const parts = responseText.split('|||');
         const chatReply = parts[0].trim();
@@ -244,8 +243,7 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
 
     await new Promise(resolve => setTimeout(resolve, mediaData ? 3000 : 2000));
 
-    // Use generateAgenticResponse
-    const fullResponse = await generateAgenticResponse(senderName, textInput, historyLogs, specialContact, mediaData);
+    const fullResponse = await generateGeminiResponse(senderName, textInput, historyLogs, specialContact, mediaData, getUrgentNote());
 
     const parts = fullResponse.split('|||');
     const chatReply = parts[0].trim();
