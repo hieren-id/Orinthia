@@ -46,7 +46,13 @@ async function generateAgenticResponse(sender, text, historyLogs, specialContact
             });
             userParts.push({ text: "Lihat gambar ini." });
         }
-        if (text) userParts.push({ text: text });
+        if (text) {
+            userParts.push({ text: text });
+        } else if (userParts.length === 0) {
+            // Jika tidak ada text dan tidak ada media (misal dari debounce),
+            // pancing AI untuk merespons berdasarkan history yang sudah ada di system prompt.
+            userParts.push({ text: "Silahkan respons pesan terakhir dari riwayat chat di atas." });
+        }
 
         let result = await chat.sendMessage(userParts);
         let response = await result.response;
