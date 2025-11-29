@@ -16,7 +16,7 @@ if (!MODEL_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
 const model = genAI.getGenerativeModel({
-    model: "gemma-3-27b",
+    model: "gemini-2.5-flash",
     tools: [
         {
             googleSearch: {}
@@ -47,7 +47,7 @@ if (fs.existsSync('./urgent_note.txt')) {
 
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
-const DEBOUNCE_TIME = 5000;
+const DEBOUNCE_TIME = 10000;
 const statusCooldowns = new Map();
 const COOLDOWN_DURATION = 60 * 60 * 1000;
 
