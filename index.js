@@ -1,5 +1,5 @@
 // FILE: index.js
-// UPDATE TAHAP 3: DATABASE & PERSISTENCE
+// Ini adalah file UTAMA untuk menjalankan bot.
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
@@ -139,6 +139,7 @@ client.on('message_create', async msg => {
 
             if (chatReply) {
                 await msg.reply(chatReply);
+                console.log(`🤖 Reika Membalas (Owner): "${chatReply.substring(0, 50)}..."`); // LOG FIX
                 messageBuffer.push({
                     chatId: chatIdContext,
                     text: `[Reika]: ${chatReply}`,
@@ -245,6 +246,7 @@ client.on('message_create', async msg => {
                 text: `[${nameLabel}]: ${textContent}`,
                 timestamp: Date.now()
             });
+            console.log(`📝 Buffered [${senderName}]: ${textContent.substring(0, 30)}...`); // LOG FIX
             saveDatabase(); // SIMPAN SETIAP ADA PESAN BARU
         }
     }
@@ -330,7 +332,10 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     
     const parts = fullResponse.split('|||');
     const chatReply = parts[0].trim();
-    if (chatReply) await msgInstance.reply(chatReply);
+    if (chatReply) {
+        await msgInstance.reply(chatReply);
+        console.log(`🤖 Reika Membalas ke ${senderName}: "${chatReply.substring(0, 50)}..."`); // LOG FIX: Tampilkan balasan di terminal
+    }
 
     if (parts.length > 1) {
         const chatId = msgInstance.from; 
@@ -342,6 +347,7 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
             await new Promise(resolve => setTimeout(resolve, 1000));
             await client.sendMessage(chatId, infoStatus);
             statusCooldowns.set(chatId, now);
+            console.log(`ℹ️ Info Status dikirim ke ${senderName}`); // LOG FIX
         }
     }
     // Ingat, kita juga perlu menyimpan balasan bot ke database
@@ -425,6 +431,7 @@ client.on('incoming_call', async call => {
         const result = await model.generateContent(prompt);
         const textResponse = result.response.text().trim();
         await client.sendMessage(call.from, textResponse);
+        console.log(`📞 Auto-Reply Telpon ke ${callerNumber}: ${textResponse}`); // LOG FIX
     } catch (error) {
         console.error("Error handle call:", error);
     }
