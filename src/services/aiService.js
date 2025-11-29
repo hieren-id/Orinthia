@@ -5,7 +5,7 @@ const { getUrgentNote } = require('../database/db');
 
 // Initialize model with tools
 const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: "gemini-2.0-flash",
     tools: [
         { googleSearch: {} },
         ...toolsDefinition
