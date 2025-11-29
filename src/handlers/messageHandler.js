@@ -7,7 +7,7 @@ const { setBotStatus, getBotStatus } = require('../utils/state');
 let isWaitingForNote = false;
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
-const DEBOUNCE_TIME = 5000; // Updated to 5000 from user's code
+const DEBOUNCE_TIME = 10000; // Updated to 5000 from user's code
 const statusCooldowns = new Map();
 const COOLDOWN_DURATION = 60 * 60 * 1000;
 
