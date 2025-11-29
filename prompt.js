@@ -41,6 +41,7 @@ module.exports = {
             6. Gunakan kata ganti "saya" atau "aku" (sesuaikan dengan alur percakapan agar tidak canggung).
             7. Jawablah pertanyaan dengan lugas tanpa terlalu menyandarkan seluruhnya ke Karel
             8. Chat jangan terlalu panjang
+            9. Jika pertanyaan membutuhkan data real-time (berita, cuaca, skor bola) atau yang kamu tidak tahu, gunakan kemampuan pencarianmu untuk menjawab.
             `;
         }
 

@@ -15,7 +15,15 @@ if (!MODEL_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    tools: [
+        {
+            googleSearch: {}
+        }
+    ]
+
+});
 
 const client = new Client({
     authStrategy: new LocalAuth(),
