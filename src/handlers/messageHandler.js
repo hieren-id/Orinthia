@@ -1,13 +1,13 @@
 const client = require('../core/whatsapp');
 const { saveDatabase, saveUrgentNote, deleteUrgentNote, getUrgentNote, getMessageBuffer, addMessageToBuffer, clearMessageBuffer } = require('../database/db');
-const { generateGeminiResponse, generateGeminiSummary } = require('../services/aiService');
+const { generateAgenticResponse, generateGeminiSummary } = require('../services/aiService');
 const { getSpecialContact } = require('../services/contactService');
 const { setBotStatus, getBotStatus } = require('../utils/state');
 
 let isWaitingForNote = false;
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
-const DEBOUNCE_TIME = 10000;
+const DEBOUNCE_TIME = 5000; // Updated to 5000 from user's code
 const statusCooldowns = new Map();
 const COOLDOWN_DURATION = 60 * 60 * 1000;
 
@@ -124,7 +124,7 @@ async function handleMessage(msg) {
 }
 
 async function handleOwnerCommands(msg, messageBody, chat) {
-    // 1. CHAT REIKA
+    // 1. CHAT REIKA (!reika)
     if (messageBody.toLowerCase().startsWith('!reika')) {
         const userQuery = messageBody.replace(/^!reika\s*/i, '');
         const chatIdContext = msg.to;
@@ -157,7 +157,8 @@ async function handleOwnerCommands(msg, messageBody, chat) {
             .map(item => item.text)
             .join('\n');
 
-        const responseText = await generateGeminiResponse("Karel (Owner)", userQuery, historyLogs, null, media, getUrgentNote());
+        // Use generateAgenticResponse
+        const responseText = await generateAgenticResponse("Karel (Owner)", userQuery, historyLogs, null, media);
 
         const parts = responseText.split('|||');
         const chatReply = parts[0].trim();
@@ -177,25 +178,25 @@ async function handleOwnerCommands(msg, messageBody, chat) {
     // 2. MANAJEMEN COMMANDS
     if (messageBody.toLowerCase() === '!ctt') {
         isWaitingForNote = true;
-        await msg.reply('✍️ Silahkan tambahkan catatan mendesak. Kirim pesan selanjutnya sebagai isi catatan.');
+        await msg.reply('✍️ Mode Manual: Kirim pesan catatan.');
         return;
     }
 
     if (messageBody.toLowerCase() === '!ctthps') {
         deleteUrgentNote();
         isWaitingForNote = false;
-        await msg.reply('🗑️ Catatan dihapus.');
+        await msg.reply('🗑️ Catatan dihapus (Manual).');
         return;
     }
 
     if (messageBody.toLowerCase() === '!cekctt') {
         const note = getUrgentNote();
-        await msg.reply(note ? `📝 Catatan: "${note}"` : '✅ Tidak ada catatan aktif.');
+        await msg.reply(note ? `📝 Catatan Aktif: "${note}"` : '✅ Tidak ada catatan.');
         return;
     }
 
     if (isWaitingForNote) {
-        if (messageBody.includes('Silahkan tambahkan catatan mendesak')) return;
+        if (messageBody.includes('Mode Manual')) return;
         saveUrgentNote(messageBody);
         isWaitingForNote = false;
         await msg.reply(`✅ Catatan tersimpan: "${messageBody}"`);
@@ -243,7 +244,8 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
 
     await new Promise(resolve => setTimeout(resolve, mediaData ? 3000 : 2000));
 
-    const fullResponse = await generateGeminiResponse(senderName, textInput, historyLogs, specialContact, mediaData, getUrgentNote());
+    // Use generateAgenticResponse
+    const fullResponse = await generateAgenticResponse(senderName, textInput, historyLogs, specialContact, mediaData);
 
     const parts = fullResponse.split('|||');
     const chatReply = parts[0].trim();

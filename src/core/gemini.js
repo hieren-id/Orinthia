@@ -15,4 +15,4 @@ const model = genAI.getGenerativeModel({
     ]
 });
 
-module.exports = model;
+module.exports = { model, genAI };
