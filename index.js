@@ -1,5 +1,5 @@
 // FILE: index.js
-// UPDATE TAHAP 2: MENAMBAHKAN VISION (MATA)
+// UPDATE TAHAP 3: DATABASE & PERSISTENCE
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
@@ -15,12 +15,11 @@ if (!MODEL_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(MODEL_API_KEY);
-// Gunakan 1.5 Flash karena dia Multimodal (Bisa Teks & Gambar)
-// Dan tambahkan tools googleSearch untuk Tahap 1 (Grounding)
+// Gunakan model latest yang support search & vision
 const model = genAI.getGenerativeModel({ 
     model: "gemini-2.5-flash",
     tools: [
-        { googleSearch: {} } // Fitur Googling (Tahap 1)
+        { googleSearch: {} } // Fitur Googling Aktif
     ]
 });
 
@@ -32,15 +31,43 @@ const client = new Client({
     }
 });
 
-// --- STATE VARIABLES ---
+// --- STATE VARIABLES & DATABASE ---
 let isBotActive = false; 
-let messageBuffer = []; 
 let isWaitingForNote = false; 
 let urgentNote = ""; 
+let messageBuffer = []; 
 
-if (fs.existsSync('./urgent_note.txt')) {
-    urgentNote = fs.readFileSync('./urgent_note.txt', 'utf8');
-    console.log(`Memuat Catatan Mendesak: "${urgentNote}"`);
+// FILE DATABASE SEDERHANA
+const DB_FILE = './database.json';
+const NOTE_FILE = './urgent_note.txt';
+
+// 1. Load Catatan Mendesak
+if (fs.existsSync(NOTE_FILE)) {
+    urgentNote = fs.readFileSync(NOTE_FILE, 'utf8');
+    console.log(`📂 Catatan Mendesak Dimuat: "${urgentNote}"`);
+}
+
+// 2. Load History Chat (Ingatan Abadi)
+if (fs.existsSync(DB_FILE)) {
+    try {
+        const rawData = fs.readFileSync(DB_FILE, 'utf8');
+        messageBuffer = JSON.parse(rawData);
+        console.log(`📂 Database Dimuat: ${messageBuffer.length} item ingatan.`);
+    } catch (err) {
+        console.error("Gagal memuat database:", err);
+        messageBuffer = [];
+    }
+}
+
+// Fungsi Simpan Database Otomatis
+function saveDatabase() {
+    try {
+        // Batasi ukuran file, misal simpan 200 pesan terakhir saja agar file tidak bengkak
+        const dataToSave = messageBuffer.slice(-200); 
+        fs.writeFileSync(DB_FILE, JSON.stringify(dataToSave, null, 2));
+    } catch (err) {
+        console.error("Gagal menyimpan database:", err);
+    }
 }
 
 const privateMessageQueues = new Map();
@@ -91,12 +118,13 @@ client.on('message_create', async msg => {
                 }
             }
 
-            // Simpan ke buffer (Teks saja untuk history)
+            // Simpan ke buffer & Save DB
             messageBuffer.push({
                 chatId: chatIdContext,
                 text: `[Karel (Owner)]: ${userQuery} ${media ? '[MENGIRIM GAMBAR]' : ''}`,
                 timestamp: Date.now()
             });
+            saveDatabase(); // SIMPAN
 
             const historyLogs = messageBuffer
                 .filter(item => item.chatId === chatIdContext)
@@ -104,7 +132,6 @@ client.on('message_create', async msg => {
                 .map(item => item.text)
                 .join('\n');
 
-            // Generate dengan Media
             const responseText = await generateGeminiResponse("Karel (Owner)", userQuery, historyLogs, null, media);
             
             const parts = responseText.split('|||');
@@ -117,36 +144,40 @@ client.on('message_create', async msg => {
                     text: `[Reika]: ${chatReply}`,
                     timestamp: Date.now()
                 });
+                saveDatabase(); // SIMPAN
             }
             return; 
         }
 
-        // 2. INPUT CATATAN
+        // 2. MANAJEMEN COMMANDS
+        if (messageBody.toLowerCase() === '!ctt') {
+            isWaitingForNote = true;
+            await msg.reply('✍️ Silahkan tambahkan catatan mendesak. Kirim pesan selanjutnya sebagai isi catatan.');
+            return;
+        }
+
+        if (messageBody.toLowerCase() === '!ctthps') {
+            urgentNote = "";
+            isWaitingForNote = false;
+            if (fs.existsSync(NOTE_FILE)) fs.unlinkSync(NOTE_FILE);
+            await msg.reply('🗑️ Catatan dihapus.');
+            return;
+        }
+
+        if (messageBody.toLowerCase() === '!cekctt') {
+            await msg.reply(urgentNote ? `📝 Catatan: "${urgentNote}"` : '✅ Tidak ada catatan aktif.');
+            return;
+        }
+
         if (isWaitingForNote) {
             if (messageBody.includes('Silahkan tambahkan catatan mendesak')) return;
             urgentNote = messageBody;
-            fs.writeFileSync('./urgent_note.txt', urgentNote);
+            fs.writeFileSync(NOTE_FILE, urgentNote);
             isWaitingForNote = false; 
             await msg.reply(`✅ Catatan tersimpan: "${urgentNote}"`);
             return; 
         }
 
-        if (messageBody.toLowerCase() === '!ctt') {
-            isWaitingForNote = true;
-            await msg.reply('✍️ Silahkan tambahkan catatan mendesak.');
-            return;
-        }
-        if (messageBody.toLowerCase() === '!ctthps') {
-            urgentNote = "";
-            isWaitingForNote = false;
-            if (fs.existsSync('./urgent_note.txt')) fs.unlinkSync('./urgent_note.txt');
-            await msg.reply('🗑️ Catatan dihapus.');
-            return;
-        }
-        if (messageBody.toLowerCase() === '!cekctt') {
-            await msg.reply(urgentNote ? `📝 Catatan: "${urgentNote}"` : '✅ Tidak ada catatan aktif.');
-            return;
-        }
         if (messageBody.toLowerCase() === '!aktif') {
             isBotActive = true;
             await msg.reply('🤖 Asisten Reika AKTIF.');
@@ -166,7 +197,9 @@ client.on('message_create', async msg => {
             const fullLogText = messageBuffer.map(item => item.text).join('\n');
             const summary = await generateGeminiSummary(fullLogText);
             await msg.reply(`📝 *Ringkasan:*\n\n${summary}`);
-            messageBuffer = [];
+            
+            messageBuffer = []; // Reset memori RAM
+            saveDatabase(); // Kosongkan file DB juga
             return;
         }
     }
@@ -178,7 +211,6 @@ client.on('message_create', async msg => {
     if (isBotActive && msg.hasMedia) {
         try {
             const attachment = await msg.downloadMedia();
-            // Hanya proses jika itu GAMBAR (image/jpeg, image/png, dll)
             if (attachment && attachment.mimetype.startsWith('image/')) {
                 incomingMedia = attachment;
                 console.log(`📸 Gambar diterima dari ${senderName}`);
@@ -206,7 +238,6 @@ client.on('message_create', async msg => {
         if (shouldBuffer && !messageBody.startsWith('!')) {
             const nameLabel = msg.fromMe ? "Anda (Owner)" : senderName;
             const chatIdContext = msg.fromMe ? msg.to : msg.from;
-            // Tandai di log kalau ada gambar
             const textContent = incomingMedia ? `[MENGIRIM GAMBAR] ${messageBody}` : messageBody;
             
             messageBuffer.push({
@@ -214,6 +245,7 @@ client.on('message_create', async msg => {
                 text: `[${nameLabel}]: ${textContent}`,
                 timestamp: Date.now()
             });
+            saveDatabase(); // SIMPAN SETIAP ADA PESAN BARU
         }
     }
 
@@ -243,15 +275,12 @@ client.on('message_create', async msg => {
             if (!isBotMentioned && !isReplyingToMe) return;
 
             console.log(`Bot merespon di Grup ${chat.name}`);
-            // Kirim Media ke fungsi process
             await processAIResponse(msg, senderName, messageBody, chat.id._serialized, specialContact, incomingMedia);
         } 
         
         else {
             const chatId = msg.from;
             
-            // JIKA ADA GAMBAR, JANGAN PAKAI DEBOUNCE (LANGSUNG PROSES)
-            // Karena menggabungkan gambar dalam antrian itu rumit.
             if (incomingMedia) {
                 if (privateDebounceTimers.has(chatId)) clearTimeout(privateDebounceTimers.get(chatId));
                 privateMessageQueues.delete(chatId);
@@ -260,7 +289,6 @@ client.on('message_create', async msg => {
                 return;
             }
 
-            // LOGIKA DEBOUNCE (Hanya Teks)
             if (privateDebounceTimers.has(chatId)) clearTimeout(privateDebounceTimers.get(chatId));
 
             const currentQueue = privateMessageQueues.get(chatId) || [];
@@ -275,7 +303,6 @@ client.on('message_create', async msg => {
                 privateMessageQueues.delete(chatId);
                 privateDebounceTimers.delete(chatId);
 
-                // Media di queue teks dianggap null (karena logika di atas sudah handle direct image)
                 await processAIResponse(lastMsg, senderName, "", chatId, specialContact, null); 
 
             }, DEBOUNCE_TIME);
@@ -285,7 +312,6 @@ client.on('message_create', async msg => {
     }
 });
 
-// Update fungsi processAIResponse untuk menerima MEDIA
 async function processAIResponse(msgInstance, senderName, textInput, chatIdContext, specialContact, mediaData) {
     const chat = await msgInstance.getChat();
     const historyLogs = messageBuffer
@@ -298,10 +324,8 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
         try { await chat.sendStateTyping(); } catch (err) { }
     }
     
-    // Jika ada gambar, delay dikit biar loading gambar kerasa wajar
     await new Promise(resolve => setTimeout(resolve, mediaData ? 3000 : 2000));
 
-    // Panggil Gemini dengan Media
     const fullResponse = await generateGeminiResponse(senderName, textInput, historyLogs, specialContact, mediaData);
     
     const parts = fullResponse.split('|||');
@@ -320,9 +344,15 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
             statusCooldowns.set(chatId, now);
         }
     }
+    // Ingat, kita juga perlu menyimpan balasan bot ke database
+    messageBuffer.push({
+        chatId: chatIdContext,
+        text: `[Reika]: ${chatReply}`,
+        timestamp: Date.now()
+    });
+    saveDatabase(); // SIMPAN
 }
 
-// Update fungsi generateGeminiResponse untuk handle MULTIMODAL
 async function generateGeminiResponse(sender, text, historyLogs, specialContact, mediaData) {
     try {
         const now = new Date();
@@ -334,37 +364,23 @@ async function generateGeminiResponse(sender, text, historyLogs, specialContact,
         delete require.cache[require.resolve('./prompt')];
         const { getSystemPrompt } = require('./prompt');
 
-        // Jika ada gambar, kita kasih info ke prompt
-        const imageContext = mediaData ? "[USER MENGIRIM GAMBAR/FOTO]" : "";
-        
-        // Rakit Prompt Teks
         const systemPrompt = getSystemPrompt(hariTanggal, jamSekarang, sender, historyLogs, urgentNote, specialContact);
         
-        // --- KONSTRUKSI PAYLOAD GEMINI (MULTIMODAL) ---
-        // Kita menyusun array: [SystemPrompt, Gambar (Opsional), Pesan User]
-        
         const payload = [];
-        
-        // 1. Masukkan System Prompt
         payload.push(systemPrompt);
 
-        // 2. Masukkan Gambar (Jika ada)
         if (mediaData) {
             payload.push({
                 inlineData: {
                     mimeType: mediaData.mimetype,
-                    data: mediaData.data // Ini string Base64
+                    data: mediaData.data 
                 }
             });
             payload.push("Ini adalah gambar yang dikirim oleh lawan bicara. Jelaskan atau tanggapi gambar ini sesuai konteks chat.");
         }
 
-        // 3. Masukkan Pesan User (Jika ada teks caption di gambar, atau teks biasa)
-        if (text) {
-            payload.push(text);
-        }
+        if (text) payload.push(text);
 
-        // Panggil Gemini dengan Payload Array
         const result = await model.generateContent(payload);
         const response = await result.response;
         return response.text();
@@ -386,10 +402,8 @@ async function generateGeminiSummary(textData) {
     }
 }
 
-// --- EVENT HANDLER KHUSUS TELEPON MASUK ---
 client.on('incoming_call', async call => {
     if (!isBotActive) return;
-    console.log(`📞 Panggilan masuk dari: ${call.from}`);
     const callerNumber = call.from.replace('@c.us', '');
     let specialContact = null;
     try {
