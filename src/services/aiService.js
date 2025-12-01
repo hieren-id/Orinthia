@@ -2,7 +2,7 @@ const modelGemini = require('../core/gemini');
 const { getSystemPrompt } = require('../data/prompt');
 
 // Fungsi Utama: Chat Agentic dengan Gemini (Tanpa Tools)
-async function generateAIResponse(sender, text, historyLogs, specialContact, mediaData, urgentNote) {
+async function generateAIResponse(sender, text, historyLogs, specialContact, mediaData, urgentNote, retrievedContext) {
     try {
         // Reload prompt (Hot Reload)
         const promptPath = require.resolve('../data/prompt');
@@ -16,7 +16,7 @@ async function generateAIResponse(sender, text, historyLogs, specialContact, med
         const jamSekarang = now.toLocaleTimeString('id-ID', optionsTime);
 
         // System Prompt Awal
-        const systemPrompt = getSystemPrompt(hariTanggal, jamSekarang, sender, historyLogs, urgentNote, specialContact, "");
+        const systemPrompt = getSystemPrompt(hariTanggal, jamSekarang, sender, historyLogs, urgentNote, specialContact, retrievedContext);
 
         // Gabungkan Prompt dan Pesan User
         const fullPrompt = `${systemPrompt}\n\n[PESAN USER TERAKHIR]:\n${text || "Lanjutkan respons berdasarkan konteks."}`;

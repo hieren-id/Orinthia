@@ -2,6 +2,7 @@ const client = require('../core/whatsapp');
 const { saveDatabase, saveUrgentNote, deleteUrgentNote, getUrgentNote, getMessageBuffer, addMessageToBuffer, clearMessageBuffer } = require('../database/db');
 const { generateAIResponse, generateGeminiSummary, generateVisionResponse } = require('../services/aiService');
 const { getSpecialContact } = require('../services/contactService');
+const { searchRelevantContext } = require('../services/ragService');
 const { setBotStatus, getBotStatus, getActivationTimestamp } = require('../utils/state');
 
 let isWaitingForNote = false;
@@ -165,7 +166,8 @@ async function handleOwnerCommands(msg, messageBody, chat) {
         if (media) {
             responseText = await generateVisionResponse(userQuery, media);
         } else {
-            responseText = await generateAIResponse("Karel (Owner)", userQuery, historyLogs, null, null, getUrgentNote());
+            const context = await searchRelevantContext(userQuery);
+            responseText = await generateAIResponse("Karel (Owner)", userQuery, historyLogs, null, null, getUrgentNote(), context);
         }
 
         const parts = responseText.split('|||');
@@ -256,7 +258,8 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     if (mediaData) {
         fullResponse = await generateVisionResponse(textInput, mediaData);
     } else {
-        fullResponse = await generateAIResponse(senderName, textInput, historyLogs, specialContact, null, getUrgentNote());
+        const context = await searchRelevantContext(textInput);
+        fullResponse = await generateAIResponse(senderName, textInput, historyLogs, specialContact, null, getUrgentNote(), context);
     }
 
     const parts = fullResponse.split('|||');
