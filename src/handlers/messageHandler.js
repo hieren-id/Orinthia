@@ -2,7 +2,7 @@ const client = require('../core/whatsapp');
 const { saveDatabase, saveUrgentNote, deleteUrgentNote, getUrgentNote, getMessageBuffer, addMessageToBuffer, clearMessageBuffer } = require('../database/db');
 const { generateGroqResponse, generateGeminiSummary, generateVisionResponse } = require('../services/aiService');
 const { getSpecialContact } = require('../services/contactService');
-const { setBotStatus, getBotStatus } = require('../utils/state');
+const { setBotStatus, getBotStatus, getActivationTimestamp } = require('../utils/state');
 
 let isWaitingForNote = false;
 const privateMessageQueues = new Map();
@@ -147,9 +147,17 @@ async function handleOwnerCommands(msg, messageBody, chat) {
         });
 
         const messageBuffer = getMessageBuffer();
-        const historyLogs = messageBuffer
-            .filter(item => item.chatId === chatIdContext)
-            .slice(-50)
+        const activationTime = getActivationTimestamp();
+
+        let relevantMessages = messageBuffer;
+
+        // Filter berdasarkan waktu aktivasi jika ada
+        if (activationTime) {
+            relevantMessages = relevantMessages.filter(item => item.timestamp >= activationTime);
+        }
+
+        // Ambil SEMUA pesan yang relevan (Global Context) tanpa limit 50
+        const historyLogs = relevantMessages
             .map(item => item.text)
             .join('\n');
 
