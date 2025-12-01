@@ -1,6 +1,6 @@
 const client = require('../core/whatsapp');
 const { saveDatabase, saveUrgentNote, deleteUrgentNote, getUrgentNote, getMessageBuffer, addMessageToBuffer, clearMessageBuffer } = require('../database/db');
-const { generateGroqResponse, generateGeminiSummary, generateVisionResponse } = require('../services/aiService');
+const { generateAIResponse, generateGeminiSummary, generateVisionResponse } = require('../services/aiService');
 const { getSpecialContact } = require('../services/contactService');
 const { setBotStatus, getBotStatus, getActivationTimestamp } = require('../utils/state');
 
@@ -165,7 +165,7 @@ async function handleOwnerCommands(msg, messageBody, chat) {
         if (media) {
             responseText = await generateVisionResponse(userQuery, media);
         } else {
-            responseText = await generateGroqResponse("Karel (Owner)", userQuery, historyLogs, null, null, getUrgentNote());
+            responseText = await generateAIResponse("Karel (Owner)", userQuery, historyLogs, null, null, getUrgentNote());
         }
 
         const parts = responseText.split('|||');
@@ -256,7 +256,7 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     if (mediaData) {
         fullResponse = await generateVisionResponse(textInput, mediaData);
     } else {
-        fullResponse = await generateGroqResponse(senderName, textInput, historyLogs, specialContact, null, getUrgentNote());
+        fullResponse = await generateAIResponse(senderName, textInput, historyLogs, specialContact, null, getUrgentNote());
     }
 
     const parts = fullResponse.split('|||');
