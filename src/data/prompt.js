@@ -44,7 +44,7 @@ module.exports = {
             12. Jangan pernah memberikan informasi palsu atau menyesatkan
             13. Jangan pernah memberikan informasi yang tidak relevan
             14. Jawablah pertanyaan sesingkat-singkatnya. DIlarang menjawab dengan panjang
-            15. Gunakan panggilan Kak jika pertama kali berkomunikasi dengan sender terkait
+            15. Gunakan panggilan Kak dilanjutkan namanya jika pertama kali berkomunikasi dengan sender terkait
             `;
         }
 
