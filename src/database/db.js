@@ -27,8 +27,8 @@ if (fs.existsSync(DB_FILE)) {
 
 function saveDatabase() {
     try {
-        // Batasi ukuran file, misal simpan 200 pesan terakhir saja agar file tidak bengkak
-        const dataToSave = messageBuffer.slice(-200);
+        // Batasi ukuran file, misal simpan 1000 pesan terakhir saja agar file tidak bengkak
+        const dataToSave = messageBuffer.slice(-1000);
         fs.writeFileSync(DB_FILE, JSON.stringify(dataToSave, null, 2));
     } catch (err) {
         console.error("Gagal menyimpan database:", err);

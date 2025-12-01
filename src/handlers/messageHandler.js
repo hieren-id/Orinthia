@@ -45,14 +45,10 @@ async function handleMessage(msg) {
     if (isBotActive) {
         let shouldBuffer = false;
         if (chat.isGroup) {
-            const mentions = await msg.getMentions();
-            const isBotMentioned = mentions.some(c => c.id._serialized === client.info.wid._serialized);
-            let isReplyingToMe = false;
-            if (msg.hasQuotedMsg) {
-                const quotedMsg = await msg.getQuotedMessage();
-                if (quotedMsg.fromMe) isReplyingToMe = true;
+            // Buffer semua pesan grup jika grup TIDAK diarsipkan
+            if (!chat.archived) {
+                shouldBuffer = true;
             }
-            if (isBotMentioned || isReplyingToMe) shouldBuffer = true;
         } else {
             shouldBuffer = true;
         }
@@ -153,7 +149,7 @@ async function handleOwnerCommands(msg, messageBody, chat) {
         const messageBuffer = getMessageBuffer();
         const historyLogs = messageBuffer
             .filter(item => item.chatId === chatIdContext)
-            .slice(-20)
+            .slice(-50)
             .map(item => item.text)
             .join('\n');
 
@@ -238,7 +234,7 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     const messageBuffer = getMessageBuffer();
     const historyLogs = messageBuffer
         .filter(item => item.chatId === chatIdContext)
-        .slice(-20)
+        .slice(-50)
         .map(item => item.text)
         .join('\n');
 
