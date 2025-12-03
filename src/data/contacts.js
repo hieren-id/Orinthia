@@ -15,6 +15,13 @@ module.exports = [
     },
     {
         id: "dosen",
+        number: "6281327558951",
+        name: "Swahesti",
+        role: "Ibu Dosen",
+        instruction: "Gunakan Bahasa Indonesia yang baku, sangat formal, hormat, dan sopan. Panggil dengan sebutan 'Ibu'. Jangan gunakan singkatan chat (yg, gk, dll). Gunakan struktur kalimat yang lengkap dan profesional. Akhiri pesan dengan terima kasih."
+    },
+    {
+        id: "dosen",
         number: "6285712125600",
         name: "Irham Akbar",
         role: "Pak Dosen",
