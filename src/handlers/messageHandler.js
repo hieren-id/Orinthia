@@ -1,6 +1,6 @@
 const client = require('../core/whatsapp');
 const { saveUrgentNote, deleteUrgentNote, getUrgentNote, getMessageBuffer, addMessageToBuffer, clearMessageBuffer } = require('../database/db');
-const { generateAIResponse, generateGeminiSummary, generateVisionResponse } = require('../services/aiService');
+const { generateAIResponse, generateGroqSummary, generateVisionResponse, transcribeVoiceNote } = require('../services/aiService');
 const { getSpecialContact } = require('../services/contactService');
 const { setBotStatus, getBotStatus } = require('../utils/state');
 
@@ -59,6 +59,7 @@ async function handleMessage(msg) {
     const chatIdContext = chat.id._serialized;
     const mentionedIds = getMentionedIds(msg);
     const botMentioned = isBotMentioned(chat, mentionedIds);
+    const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
 
     const specialContact = getSpecialContact(senderId, senderName);
 
@@ -106,7 +107,7 @@ async function handleMessage(msg) {
         }
         await msg.reply('Sedang menyusun ringkasan...');
         const fullLogText = messageBuffer.map(item => item.text).join('\n');
-        const summary = await generateGeminiSummary(fullLogText);
+        const summary = await generateGroqSummary(fullLogText);
         await msg.reply(`RINGKASAN:\n\n${summary}`);
         clearMessageBuffer();
         return;
@@ -119,19 +120,36 @@ async function handleMessage(msg) {
     if (!shouldRespond) return;
 
     const cleanedText = lowerBody.startsWith('!reika') ? stripPrefix(messageBody) : messageBody;
-    const userText = cleanedText || (msg.hasMedia ? '[media]' : '');
+    let userText = cleanedText || (msg.hasMedia ? '[media]' : '');
 
-    recordIncoming(chatIdContext, senderName, userText);
-
-    let mediaData = null;
+    let downloadedMedia = null;
     if (msg.hasMedia) {
         try {
             const media = await msg.downloadMedia();
-            mediaData = media ? { data: media.data, mimetype: media.mimetype } : null;
+            downloadedMedia = media ? { data: media.data, mimetype: media.mimetype } : null;
         } catch (err) {
             console.error('Gagal mengunduh media:', err);
         }
     }
+
+    let mediaData = null;
+    if (downloadedMedia) {
+        const mimeType = downloadedMedia.mimetype || '';
+        const isAudioMedia = mimeType.startsWith('audio/');
+
+        if (isVoiceNote || isAudioMedia) {
+            const transcription = await transcribeVoiceNote(downloadedMedia);
+            if (transcription) {
+                userText = `[Voice Note]\n${transcription}`;
+            } else {
+                userText = '[Voice Note] (gagal ditranskripsi)';
+            }
+        } else if (mimeType.startsWith('image/')) {
+            mediaData = downloadedMedia;
+        }
+    }
+
+    recordIncoming(chatIdContext, senderName, userText);
 
     const payload = {
         msgInstance: msg,

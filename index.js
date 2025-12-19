@@ -15,7 +15,7 @@ client.on('qr', (qr) => {
 });
 
 client.on('ready', async () => {
-    console.log('Bot Gemini Siap! Ketik "!aktif" di WA untuk menyalakan.');
+    console.log('Bot Reika siap! Ketik "!aktif" di WA untuk menyalakan.');
     await initializeKnowledgeBase();
 });
 

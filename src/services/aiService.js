@@ -1,5 +1,11 @@
-const geminiModel = require('../core/gemini');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const groqClient = require('../core/groq');
 const { getSystemPrompt } = require('../data/prompt');
+
+const TEXT_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const VOICE_MODEL = 'whisper-large-v3-turbo';
 
 function formatDateTime() {
     const now = new Date();
@@ -11,46 +17,139 @@ function formatDateTime() {
     };
 }
 
+function extractTextFromCompletion(completion) {
+    const choice = completion?.choices?.[0];
+    if (!choice) return '';
+
+    const messageContent = choice.message?.content;
+    if (Array.isArray(messageContent)) {
+        return messageContent.map(part => {
+            if (typeof part === 'string') return part;
+            if (typeof part?.text === 'string') return part.text;
+            return '';
+        }).join('').trim();
+    }
+
+    return (messageContent || '').trim();
+}
+
+async function createChatCompletion(messages, { temperature = 0.4, max_tokens = 2048 } = {}) {
+    const completion = await groqClient.chat.completions.create({
+        model: TEXT_MODEL,
+        temperature,
+        max_tokens,
+        messages
+    });
+    return extractTextFromCompletion(completion);
+}
+
 async function generateAIResponse(sender, text, historyLogs, specialContact, urgentNote, retrievedContext) {
     try {
         const { hariTanggal, jamSekarang } = formatDateTime();
-        const systemPrompt = getSystemPrompt(hariTanggal, jamSekarang, sender, historyLogs, urgentNote, specialContact, retrievedContext);
-        const fullPrompt = `${systemPrompt}\n\n[PESAN USER TERAKHIR]:\n${text || "Lanjutkan respons berdasarkan konteks."}`;
+        const systemPrompt = getSystemPrompt(
+            hariTanggal,
+            jamSekarang,
+            sender,
+            historyLogs,
+            urgentNote,
+            specialContact,
+            retrievedContext
+        );
 
-        const result = await geminiModel.generateContent(fullPrompt);
-        const response = await result.response;
-        return response.text();
+        const userPrompt = text?.trim() ? text : "Lanjutkan respons berdasarkan konteks.";
+
+        const responseText = await createChatCompletion([
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+        ], { temperature: 0.35, max_tokens: 2048 });
+
+        return responseText || "Maaf, Reika belum bisa menjawab saat ini.";
     } catch (error) {
-        console.error("Error Gemini:", error);
-        return "Maaf, Reika sedang gangguan (Gemini Error).";
+        console.error("Error Groq Chat:", error);
+        return "Maaf, Reika sedang gangguan (Groq Error).";
     }
 }
 
 async function generateVisionResponse(text, mediaData) {
+    if (!mediaData) {
+        return "Tidak ada media yang bisa dianalisis.";
+    }
+
+    const prompt = text?.trim() ? text : "Jelaskan media ini secara detail.";
+    const base64Url = `data:${mediaData.mimetype};base64,${mediaData.data}`;
+
     try {
-        const prompt = text || "Jelaskan gambar ini.";
-        const imagePart = {
-            inlineData: {
-                mimeType: mediaData.mimetype,
-                data: mediaData.data
+        return await createChatCompletion([
+            {
+                role: 'system',
+                content: "Kamu membantu menganalisis media yang dikirimkan user."
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: prompt },
+                    { type: 'image_url', image_url: { url: base64Url } }
+                ]
             }
-        };
-        const result = await geminiModel.generateContent([prompt, imagePart]);
-        return result.response.text();
-    } catch (e) {
-        return "Gagal melihat gambar.";
+        ], { temperature: 0.3, max_tokens: 1024 });
+    } catch (error) {
+        console.error("Error Vision Groq:", error);
+        return "Maaf, belum bisa membaca media yang dikirim.";
     }
 }
 
-async function generateGeminiSummary(textData) {
+async function generateGroqSummary(textData) {
     try {
-        const prompt = `Ringkasan chat WhatsApp offline:\n${textData}\n\nBuat bullet points per pengirim. Bahasa Indonesia.`;
-        const result = await geminiModel.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
+        return await createChatCompletion([
+            {
+                role: 'system',
+                content: "Buat ringkasan percakapan WhatsApp dalam bahasa Indonesia, gunakan bullet point per pengirim dan ambil informasi penting saja."
+            },
+            {
+                role: 'user',
+                content: textData
+            }
+        ], { temperature: 0.2, max_tokens: 1024 });
     } catch (error) {
+        console.error("Error membuat ringkasan:", error);
         return "Gagal membuat ringkasan.";
     }
+}
+
+async function transcribeVoiceNote(mediaData) {
+    if (!mediaData?.data) return '';
+
+    const extension = guessExtension(mediaData.mimetype);
+    const tempFile = path.join(os.tmpdir(), `reika-voice-${Date.now()}-${Math.random().toString(16).slice(2)}.${extension}`);
+    const buffer = Buffer.from(mediaData.data, 'base64');
+
+    await fs.promises.writeFile(tempFile, buffer);
+
+    try {
+        const transcription = await groqClient.audio.transcriptions.create({
+            file: fs.createReadStream(tempFile),
+            model: VOICE_MODEL,
+            language: 'id',
+            temperature: 0.2
+        });
+
+        return transcription?.text?.trim() || '';
+    } catch (error) {
+        console.error("Error transkripsi voice note:", error);
+        return '';
+    } finally {
+        fs.promises.unlink(tempFile).catch(() => { });
+    }
+}
+
+function guessExtension(mimetype = '') {
+    const cleanType = (mimetype.split(';')[0] || '').toLowerCase();
+    if (cleanType.endsWith('ogg') || cleanType.includes('opus')) return 'ogg';
+    if (cleanType.includes('mpeg')) return 'mp3';
+    if (cleanType.includes('mp4')) return 'mp4';
+    if (cleanType.includes('wav')) return 'wav';
+    if (cleanType.includes('webm')) return 'webm';
+    return 'tmp';
 }
 
 async function generateCallResponse(callerNumber, specialContact) {
@@ -60,7 +159,8 @@ async function generateCallResponse(callerNumber, specialContact) {
 
 module.exports = {
     generateAIResponse,
-    generateGeminiSummary,
+    generateGroqSummary,
     generateVisionResponse,
-    generateCallResponse
+    generateCallResponse,
+    transcribeVoiceNote
 };
