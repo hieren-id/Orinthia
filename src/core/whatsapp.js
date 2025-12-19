@@ -1,9 +1,10 @@
 const path = require('path');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
-// Pin a stable web version so WWebJS skips the remote version lookup
-// that can fail with "Execution context was destroyed" on some hosts.
-const PINNED_WWEB_VERSION = '2.2411.7';
+// Pin a stable web version and fetch HTML from remote archive to avoid
+// brittle live lookups that can crash on headless hosts.
+const PINNED_WWEB_VERSION = '2.3000.1017054665';
+const REMOTE_WWEB_HTML = 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html';
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -22,12 +23,9 @@ const client = new Client({
     },
     webVersion: PINNED_WWEB_VERSION,
     webVersionCache: {
-        type: 'local',
-        path: path.join(__dirname, '../../.wwebjs_cache')
+        type: 'remote',
+        remotePath: REMOTE_WWEB_HTML
     }
 });
-
-// Bypass runtime version read to avoid evaluate() crashes on some hosts
-client.getWWebVersion = async () => PINNED_WWEB_VERSION;
 
 module.exports = client;
