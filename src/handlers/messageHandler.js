@@ -77,8 +77,8 @@ async function handleMessage(msg) {
         return;
     }
 
-    if (lowerBody.startsWith('!ctt ')) {
-        const note = messageBody.slice(5).trim();
+    if (lowerBody.startsWith('!ctt')) {
+        const note = messageBody.replace(/^!ctt\s*/i, '').trim();
         if (note) {
             saveUrgentNote(note);
             await msg.reply(`Catatan mendesak disimpan: ${note}`);
