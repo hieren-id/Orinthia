@@ -4,7 +4,7 @@ const path = require('path');
 const groqClient = require('../core/groq');
 const { getSystemPrompt } = require('../data/prompt');
 
-const TEXT_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VOICE_MODEL = 'whisper-large-v3-turbo';
 
 function formatDateTime() {
