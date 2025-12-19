@@ -27,4 +27,7 @@ const client = new Client({
     }
 });
 
+// Bypass runtime version read to avoid evaluate() crashes on some hosts
+client.getWWebVersion = async () => PINNED_WWEB_VERSION;
+
 module.exports = client;
