@@ -59,6 +59,7 @@ async function handleMessage(msg) {
     const chatIdContext = chat.id._serialized;
     const mentionedIds = getMentionedIds(msg);
     const botMentioned = isBotMentioned(chat, mentionedIds);
+    const isFromMe = msg.fromMe === true;
     const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
 
     const specialContact = getSpecialContact(senderId, senderName);
@@ -115,11 +116,13 @@ async function handleMessage(msg) {
 
     if (!getBotStatus()) return;
 
-    // Only respond in groups when explicitly pinged
-    const shouldRespond = !isGroup || botMentioned || lowerBody.startsWith('!reika');
+    const hasPrefix = lowerBody.startsWith('!reika');
+    const shouldRespond = isGroup
+        ? (botMentioned || hasPrefix)
+        : (!isFromMe || hasPrefix);
     if (!shouldRespond) return;
 
-    const cleanedText = lowerBody.startsWith('!reika') ? stripPrefix(messageBody) : messageBody;
+    const cleanedText = hasPrefix ? stripPrefix(messageBody) : messageBody;
     let userText = cleanedText || (msg.hasMedia ? '[media]' : '');
 
     let downloadedMedia = null;
