@@ -175,7 +175,6 @@ async function handleMessage(msg) {
             '- !ctt <teks> : Simpan catatan mendesak.',
             '- !hpsctt : Hapus catatan mendesak.',
             '- !cekctt : Lihat catatan mendesak aktif.',
-            '- !ringkasan : Buat ringkasan riwayat chat tersimpan.',
             '- !reika <pesan> : Paksa Reika merespons (wajib di grup).'
         ].join('\n');
         await msg.reply(helpText);
@@ -299,7 +298,7 @@ async function flushPrivateQueue(chatId) {
     );
 }
 
-async function processAIResponse(msgInstance, senderName, textInput, chatIdContext, specialContact, mediaData) {
+async function processAIResponse(msgInstance, promptSenderName, textInput, chatIdContext, specialContact, mediaData) {
     const chat = await msgInstance.getChat();
     const historyLogs = buildHistoryLogs(chatIdContext);
     const retrievedContext = await searchRelevantContext(textInput);
@@ -314,16 +313,17 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     if (mediaData) {
         fullResponse = await generateVisionResponse(textInput, mediaData);
     } else {
-        fullResponse = await generateAIResponse(senderName, textInput, historyLogs, specialContact, getUrgentNote(), retrievedContext);
+        fullResponse = await generateAIResponse(promptSenderName, textInput, historyLogs, specialContact, getUrgentNote(), retrievedContext);
     }
 
     const parts = typeof fullResponse === 'string' ? fullResponse.split('|||') : [''];
     const chatReply = applyHeader(parts[0] ? parts[0].trim() : '');
 
     if (chatReply) {
+        const logName = promptSenderName || (msgInstance._data?.notifyName) || chatIdContext;
         try {
             await msgInstance.reply(chatReply);
-            console.log(`Reika membalas ke ${senderName}: "${chatReply.substring(0, 50)}..."`);
+            console.log(`Reika membalas ke ${logName}: "${chatReply.substring(0, 50)}..."`);
         } catch (err) {
             console.error('Gagal mengirim balasan:', err);
         }
