@@ -17,7 +17,7 @@ const { setBotStatus, getBotStatus } = require('../utils/state');
 
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
-const DEBOUNCE_TIME = 15000; // kumpulkan pesan 15 detik sebelum merespons
+const DEBOUNCE_TIME = 10000; // kumpulkan pesan 15 detik sebelum merespons
 const statusCooldowns = new Map();
 const COOLDOWN_DURATION = 60 * 60 * 1000;
 const summaryTimers = new Map();
