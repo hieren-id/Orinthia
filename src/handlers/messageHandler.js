@@ -154,6 +154,16 @@ async function handleMessage(msg) {
             mentionedIds = [];
         }
     }
+    if ((!mentionedIds || mentionedIds.length === 0) && typeof msg.getGroupMentions === 'function') {
+        try {
+            const participants = await msg.getGroupMentions();
+            mentionedIds = participants
+                .map(p => p?.id?._serialized || p?._serialized)
+                .filter(id => typeof id === 'string');
+        } catch (err) {
+            console.error('Gagal mengambil group mentions:', err);
+        }
+    }
     const botMentioned = isBotMentioned(chat, mentionedIds);
     const isFromMe = msg.fromMe === true;
     const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
