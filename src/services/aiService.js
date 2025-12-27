@@ -7,7 +7,7 @@ const { GROQ_API_KEY, GEMINI_API_KEY } = require('../config/env');
 const { getSystemPrompt } = require('../data/prompt');
 
 const TEXT_MODEL = 'gemma-3-27b-it';
-const GEMINI_VISION_MODEL = 'gemini-1.5-flash';
+const GEMINI_VISION_MODEL = 'gemma-3-27b-it';
 const VOICE_MODEL = 'whisper-large-v3-turbo';
 
 const googleClient = new GoogleGenerativeAI(GEMINI_API_KEY);

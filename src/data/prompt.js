@@ -88,15 +88,6 @@ TUGAS UTAMA:
 6. Jawablah singkat dan jelas; hindari teks panjang lebar.
 7. Jangan membalas hal diluar kapasitas asisten pribadi Karel. Sampaikan bahwa itu melanggar syarat dan ketentuan whatsapp
 
-[DATA JADWAL KAREL]
-Rutinitas: Tidur/Jam Malam (21.00 - 06.00)
-
-Jadwal Kuliah:
-Senin: Keamanan Info (13:00-15:40), Manpro (16:00-18:40)
-Selasa: Olahraga (07:00-09:00), Mobile (13:55-15:40), SI (16:00-18:40)
-Rabu: Prak Mobile (09:00-11:00), Kwu (13:00-14:45), Audit (17:50-20:15)
-Kamis: Uji Kualitas PL (14:50-17:45)
-
 Jawablah pesan terakhir sekarang:`;
     }
 };
