@@ -1,14 +1,27 @@
 const client = require('../core/whatsapp');
-const { saveUrgentNote, deleteUrgentNote, getUrgentNote, getMessageBuffer, addMessageToBuffer, clearMessageBuffer } = require('../database/db');
+const {
+    saveUrgentNote,
+    deleteUrgentNote,
+    getUrgentNote,
+    getMessageBuffer,
+    addMessageToBuffer,
+    clearMessageBuffer,
+    getMessagesByChat,
+    clearMessagesByChat,
+    addConversationSummary
+} = require('../database/db');
 const { generateAIResponse, generateGroqSummary, generateVisionResponse, transcribeVoiceNote } = require('../services/aiService');
+const { searchRelevantContext } = require('../services/ragService');
 const { getSpecialContact } = require('../services/contactService');
 const { setBotStatus, getBotStatus } = require('../utils/state');
 
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
-const DEBOUNCE_TIME = 5000;
+const DEBOUNCE_TIME = 15000; // kumpulkan pesan 15 detik sebelum merespons
 const statusCooldowns = new Map();
 const COOLDOWN_DURATION = 60 * 60 * 1000;
+const summaryTimers = new Map();
+const SUMMARY_WINDOW_MS = 60 * 60 * 1000;
 
 function recordIncoming(chatId, senderName, text) {
     addMessageToBuffer({
@@ -46,6 +59,70 @@ function stripPrefix(messageBody) {
     return messageBody.replace(/^!reika\s*/i, '').trim();
 }
 
+function buildGroupMeta(chat) {
+    return {
+        name: chat?.name || 'Grup',
+        phones: [],
+        raw: null,
+        senderNumber: chat?.id?._serialized || ''
+    };
+}
+
+function applyHeader(replyText) {
+    const header = '*Reika (Asisten AI Pribadi Karel)*';
+    if (!replyText) return header;
+    const trimmed = replyText.trim();
+    if (trimmed.startsWith(header)) return trimmed;
+    return `${header}\n${trimmed}`;
+}
+
+function buildContactMeta(specialContact, senderName, senderNumber) {
+    const phones = Array.isArray(specialContact?.phone) ? specialContact.phone : [];
+    return {
+        name: specialContact?.name || senderName || 'Kontak',
+        phones,
+        raw: specialContact || null,
+        senderNumber
+    };
+}
+
+function scheduleChatSummary(chatId, contactMeta) {
+    if (summaryTimers.has(chatId)) {
+        clearTimeout(summaryTimers.get(chatId));
+    }
+
+    const timer = setTimeout(() => flushChatSummary(chatId, contactMeta), SUMMARY_WINDOW_MS);
+    summaryTimers.set(chatId, timer);
+}
+
+async function flushChatSummary(chatId, contactMeta) {
+    const logs = getMessagesByChat(chatId);
+    if (!logs.length) {
+        summaryTimers.delete(chatId);
+        return;
+    }
+
+    const fullLogText = logs.map(item => item.text).join('\n');
+
+    try {
+        const summary = await generateGroqSummary(fullLogText);
+
+        addConversationSummary({
+            chatId,
+            contactName: contactMeta?.name || 'Kontak',
+            phones: contactMeta?.phones || [],
+            senderNumber: contactMeta?.senderNumber || '',
+            timestamp: Date.now(),
+            summary
+        });
+    } catch (err) {
+        console.error('Gagal membuat ringkasan dinamis:', err);
+    }
+
+    clearMessagesByChat(chatId);
+    summaryTimers.delete(chatId);
+}
+
 async function handleMessage(msg) {
     if (msg.from.includes('@newsletter') || msg.from === 'status@broadcast' || msg.to === 'status@broadcast') return;
 
@@ -62,7 +139,9 @@ async function handleMessage(msg) {
     const isFromMe = msg.fromMe === true;
     const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
 
-    const specialContact = getSpecialContact(senderId, senderName);
+    const specialContact = isGroup ? null : getSpecialContact(senderId, senderName);
+    const promptContact = specialContact?.instruction ? specialContact : null;
+    const contactMeta = isGroup ? buildGroupMeta(chat) : buildContactMeta(specialContact, senderName, senderNumber);
 
     // Commands (always available)
     if (lowerBody === '!aktif') {
@@ -77,6 +156,22 @@ async function handleMessage(msg) {
         return;
     }
 
+    if (lowerBody === '!help') {
+        const helpText = [
+            '*Reika (Asisten AI Pribadi Karel)*',
+            'Daftar perintah:',
+            '- !aktif : Mengaktifkan balasan Reika.',
+            '- !mati : Menjeda balasan Reika.',
+            '- !ctt <teks> : Simpan catatan mendesak.',
+            '- !hpsctt : Hapus catatan mendesak.',
+            '- !cekctt : Lihat catatan mendesak aktif.',
+            '- !ringkasan : Buat ringkasan riwayat chat tersimpan.',
+            '- !reika <pesan> : Paksa Reika merespons (wajib di grup).'
+        ].join('\n');
+        await msg.reply(helpText);
+        return;
+    }
+
     if (lowerBody.startsWith('!ctt')) {
         const note = messageBody.replace(/^!ctt\s*/i, '').trim();
         if (note) {
@@ -88,29 +183,15 @@ async function handleMessage(msg) {
         return;
     }
 
-    if (lowerBody === '!hapusctt') {
+    if (lowerBody === '!hpsctt') {
         deleteUrgentNote();
         await msg.reply('Catatan mendesak dihapus.');
         return;
     }
 
-    if (lowerBody === '!lihatctt') {
+    if (lowerBody === '!cekctt') {
         const note = getUrgentNote();
         await msg.reply(note ? `Catatan aktif: ${note}` : 'Tidak ada catatan aktif.');
-        return;
-    }
-
-    if (lowerBody === '!ringkasan') {
-        const messageBuffer = getMessageBuffer();
-        if (messageBuffer.length === 0) {
-            await msg.reply('Belum ada pesan tersimpan.');
-            return;
-        }
-        await msg.reply('Sedang menyusun ringkasan...');
-        const fullLogText = messageBuffer.map(item => item.text).join('\n');
-        const summary = await generateGroqSummary(fullLogText);
-        await msg.reply(`RINGKASAN:\n\n${summary}`);
-        clearMessageBuffer();
         return;
     }
 
@@ -153,22 +234,18 @@ async function handleMessage(msg) {
     }
 
     recordIncoming(chatIdContext, senderName, userText);
+    scheduleChatSummary(chatIdContext, contactMeta);
 
     const payload = {
         msgInstance: msg,
         senderName,
         textInput: userText,
         chatIdContext,
-        specialContact,
+        specialContact: promptContact,
         mediaData
     };
 
-    if (!isGroup) {
-        enqueuePrivateMessage(payload);
-        return;
-    }
-
-    await processAIResponse(msg, senderName, userText, chatIdContext, specialContact, mediaData);
+    enqueuePrivateMessage(payload);
 }
 
 function enqueuePrivateMessage(payload) {
@@ -212,6 +289,7 @@ async function flushPrivateQueue(chatId) {
 async function processAIResponse(msgInstance, senderName, textInput, chatIdContext, specialContact, mediaData) {
     const chat = await msgInstance.getChat();
     const historyLogs = buildHistoryLogs(chatIdContext);
+    const retrievedContext = await searchRelevantContext(textInput);
 
     if (typeof chat.sendStateTyping === 'function') {
         try { await chat.sendStateTyping(); } catch (err) { }
@@ -223,11 +301,11 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
     if (mediaData) {
         fullResponse = await generateVisionResponse(textInput, mediaData);
     } else {
-        fullResponse = await generateAIResponse(senderName, textInput, historyLogs, specialContact, getUrgentNote(), null);
+        fullResponse = await generateAIResponse(senderName, textInput, historyLogs, specialContact, getUrgentNote(), retrievedContext);
     }
 
     const parts = typeof fullResponse === 'string' ? fullResponse.split('|||') : [''];
-    const chatReply = parts[0].trim();
+    const chatReply = applyHeader(parts[0] ? parts[0].trim() : '');
 
     if (chatReply) {
         try {
@@ -236,6 +314,16 @@ async function processAIResponse(msgInstance, senderName, textInput, chatIdConte
         } catch (err) {
             console.error('Gagal mengirim balasan:', err);
         }
+    }
+
+    // Tandai sebagai belum dibaca supaya terlihat belum disimak oleh Karel
+    try {
+        const chat = await msgInstance.getChat();
+        if (typeof chat.markUnread === 'function') {
+            await chat.markUnread();
+        }
+    } catch (err) {
+        console.error('Gagal menandai chat sebagai belum dibaca:', err);
     }
 
     if (parts.length > 1) {

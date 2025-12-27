@@ -5,7 +5,7 @@ function setBotStatus(status) {
     isBotActive = status;
     if (status) {
         activationTimestamp = Date.now();
-        console.log(`🕒 Bot Activated at: ${new Date(activationTimestamp).toLocaleString()}`);
+        console.log(`🕒 Bot diaktifkan pada: ${new Date(activationTimestamp).toLocaleString()}`);
     }
 }
 

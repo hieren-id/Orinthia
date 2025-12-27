@@ -1,34 +1,46 @@
 const fs = require('fs');
 const path = require('path');
 
-const DB_FILE = path.resolve(__dirname, '../../database.json');
-const NOTE_FILE = path.resolve(__dirname, '../../urgent_note.txt');
+const DB_FILE = path.resolve(__dirname, '../data/database.json');
+const NOTE_FILE = path.resolve(__dirname, '../data/urgent_note.txt');
 
 let messageBuffer = [];
+let conversationSummaries = [];
 let urgentNote = "";
 
 // Load Catatan Mendesak
 if (fs.existsSync(NOTE_FILE)) {
     urgentNote = fs.readFileSync(NOTE_FILE, 'utf8');
-    console.log(`📂 Catatan Mendesak Dimuat: "${urgentNote}"`);
+    console.log(`dY", Catatan Mendesak Dimuat: "${urgentNote}"`);
 }
 
-// Load History Chat (Ingatan Abadi)
+// Load History Chat (Ingatan Abadi) + Summaries
 if (fs.existsSync(DB_FILE)) {
     try {
         const rawData = fs.readFileSync(DB_FILE, 'utf8');
-        messageBuffer = JSON.parse(rawData);
-        console.log(`📂 Database Dimuat: ${messageBuffer.length} item ingatan.`);
+        const parsed = JSON.parse(rawData);
+
+        if (Array.isArray(parsed)) {
+            messageBuffer = parsed;
+        } else {
+            messageBuffer = Array.isArray(parsed.messages) ? parsed.messages : [];
+            conversationSummaries = Array.isArray(parsed.summaries) ? parsed.summaries : [];
+        }
+
+        console.log(`dY", Database Dimuat: ${messageBuffer.length} item ingatan.`);
     } catch (err) {
         console.error("Gagal memuat database:", err);
         messageBuffer = [];
+        conversationSummaries = [];
     }
 }
 
 function saveDatabase() {
     try {
-        // Batasi ukuran file, misal simpan 1000 pesan terakhir saja agar file tidak bengkak
-        const dataToSave = messageBuffer.slice(-1000);
+        const dataToSave = {
+            messages: messageBuffer.slice(-1000),
+            summaries: conversationSummaries.slice(-500)
+        };
         fs.writeFileSync(DB_FILE, JSON.stringify(dataToSave, null, 2));
     } catch (err) {
         console.error("Gagal menyimpan database:", err);
@@ -63,6 +75,24 @@ function clearMessageBuffer() {
     saveDatabase();
 }
 
+function getMessagesByChat(chatId) {
+    return messageBuffer.filter(item => item.chatId === chatId);
+}
+
+function clearMessagesByChat(chatId) {
+    messageBuffer = messageBuffer.filter(item => item.chatId !== chatId);
+    saveDatabase();
+}
+
+function addConversationSummary(summary) {
+    conversationSummaries.push(summary);
+    saveDatabase();
+}
+
+function getConversationSummaries() {
+    return conversationSummaries;
+}
+
 module.exports = {
     saveDatabase,
     saveUrgentNote,
@@ -70,5 +100,9 @@ module.exports = {
     getUrgentNote,
     getMessageBuffer,
     addMessageToBuffer,
-    clearMessageBuffer
+    clearMessageBuffer,
+    getMessagesByChat,
+    clearMessagesByChat,
+    addConversationSummary,
+    getConversationSummaries
 };

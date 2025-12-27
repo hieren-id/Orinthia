@@ -7,16 +7,12 @@ const { GROQ_API_KEY, GEMINI_API_KEY } = require('../config/env');
 const { getSystemPrompt } = require('../data/prompt');
 
 const TEXT_MODEL = 'gemma-3-27b-it';
-const GROQ_VISION_MODEL = 'llama-3.2-11b-vision-instruct';
+const GEMINI_VISION_MODEL = 'gemini-1.5-flash';
 const VOICE_MODEL = 'whisper-large-v3-turbo';
-
-if (!GEMINI_API_KEY) {
-    console.error('Gemini ERROR: API Key belum diisi di file .env (GEMINI_API_KEY)!');
-    process.exit(1);
-}
 
 const googleClient = new GoogleGenerativeAI(GEMINI_API_KEY);
 const gemmaModel = googleClient.getGenerativeModel({ model: TEXT_MODEL });
+const visionModel = googleClient.getGenerativeModel({ model: GEMINI_VISION_MODEL });
 
 function formatDateTime() {
     const now = new Date();
@@ -61,16 +57,6 @@ async function createGeminiCompletion(prompt, { temperature = 0.4, maxOutputToke
     return text?.trim?.() || '';
 }
 
-async function createGroqChat(messages, { temperature = 0.4, max_tokens = 1024, model = GROQ_VISION_MODEL } = {}) {
-    const completion = await groqClient.chat.completions.create({
-        model,
-        temperature,
-        max_tokens,
-        messages
-    });
-    return extractTextFromCompletion(completion);
-}
-
 async function generateAIResponse(sender, text, historyLogs, specialContact, urgentNote, retrievedContext) {
     try {
         const { hariTanggal, jamSekarang } = formatDateTime();
@@ -88,7 +74,7 @@ async function generateAIResponse(sender, text, historyLogs, specialContact, urg
 
         const fullPrompt = `${systemPrompt}\n\n[PESAN USER TERAKHIR]:\n${userPrompt}`;
 
-        const responseText = await createGeminiCompletion(fullPrompt, { temperature: 0.35, maxOutputTokens: 2048 });
+        const responseText = await createGeminiCompletion(fullPrompt);
 
         return responseText || "Maaf, Reika belum bisa menjawab saat ini.";
     } catch (error) {
@@ -103,24 +89,29 @@ async function generateVisionResponse(text, mediaData) {
     }
 
     const prompt = text?.trim() ? text : "Jelaskan media ini secara detail.";
-    const base64Url = `data:${mediaData.mimetype};base64,${mediaData.data}`;
+    const base64Data = mediaData.data;
 
     try {
-        return await createGroqChat([
-            {
-                role: 'system',
-                content: "Kamu membantu menganalisis media yang dikirimkan user."
-            },
-            {
-                role: 'user',
-                content: [
-                    { type: 'text', text: prompt },
-                    { type: 'image_url', image_url: { url: base64Url } }
-                ]
+        const result = await visionModel.generateContent({
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        { text: prompt },
+                        { inlineData: { data: base64Data, mimeType: mediaData.mimetype } }
+                    ]
+                }
+            ],
+            generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 1024
             }
-        ], { temperature: 0.3, max_tokens: 1024, model: GROQ_VISION_MODEL });
+        });
+
+        const textResp = await result.response.text();
+        return textResp?.trim?.() || "Tidak ada respons dari analisis gambar.";
     } catch (error) {
-        console.error("Error Vision Groq:", error);
+        console.error("Error Vision Gemini:", error);
         return "Maaf, belum bisa membaca media yang dikirim.";
     }
 }

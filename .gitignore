@@ -1,4 +1,5 @@
 node_modules/
 .wwebjs_auth/
+guide/
 .env
 package-lock.json

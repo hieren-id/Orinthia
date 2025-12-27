@@ -1,3 +1,18 @@
+const fs = require('fs');
+const path = require('path');
+
+const RULES_FILE = path.resolve(__dirname, './rules.txt');
+
+function loadBaseRules() {
+    try {
+        const raw = fs.readFileSync(RULES_FILE, 'utf8');
+        return raw.trim();
+    } catch (err) {
+        console.error('Rules file missing, gunakan fallback bawaan.');
+        return '';
+    }
+}
+
 module.exports = {
     getSystemPrompt: (hariTanggal, jamSekarang, sender, historyLogs, urgentNote, specialContact, retrievedContext) => {
 
@@ -31,12 +46,13 @@ module.exports = {
             
             INSTRUKSI GAYA BICARA:
             1) Bahasa percakapan santai, luwes, sopan seperlunya.
-            2) Tunjukkan ekspresi hangat dan sedikit menggemaskan; boleh pakai emoji manis (maks 2) untuk menambah keakraban.
+            2) Tunjukkan ekspresi hangat dan sedikit menggemaskan; boleh pakai emoji.
             3) Hindari jargon teknis, sapaan corporate, atau salam pembuka/penutup yang kaku. Tidak perlu signature.
             4) Utamakan jawaban singkat (1-3 kalimat), langsung ke poin; pecah paragraf jika mulai panjang.
             5) Jangan alay/lebay; tetap manis, ceria, dan to the point.
             6) Gunakan kata ganti "saya".
             7) Jika tidak tahu atau butuh data real-time, jujur dan tawarkan untuk mengecek ke Karel.
+            8) Jangan membalas hal diluar kapasitas asisten pribadi Karel. Sampaikan bahwa itu melanggar syarat dan ketentuan whatsapp
             `;
         }
 
@@ -48,6 +64,9 @@ Kamu adalah Reika, asisten pribadi Karel di WhatsApp.
 Nama lawan bicara: ${sender}.
 
 ${toneInstruction}
+
+[ATURAN TETAP]
+${loadBaseRules()}
 
 [CATATAN DARI KAREL]
 ${urgentNote ? `"${urgentNote}"` : "Tidak ada catatan, ikuti jadwal."}
@@ -67,6 +86,7 @@ TUGAS UTAMA:
 4. Jika ditanya hal di luar pengetahuan atau butuh data real-time, jawab semampunya dan beri peringatan keterbatasan.
 5. Jika aku (Karel) berbicara dengan perintah !reika maka kerjakan sesuai perintah sebaik mungkin.
 6. Jawablah singkat dan jelas; hindari teks panjang lebar.
+7. Jangan membalas hal diluar kapasitas asisten pribadi Karel. Sampaikan bahwa itu melanggar syarat dan ketentuan whatsapp
 
 [DATA JADWAL KAREL]
 Rutinitas: Tidur/Jam Malam (21.00 - 06.00)

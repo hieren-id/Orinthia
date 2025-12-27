@@ -2,48 +2,23 @@ const fs = require('fs');
 const path = require('path');
 
 const KNOWLEDGE_FILE = path.resolve(__dirname, '../data/knowledge_base.txt');
+const VECTOR_STORE_FILE = path.resolve(__dirname, '../data/vector_store.json');
 
 let vectorStore = [];
-
-async function initializeKnowledgeBase() {
-    console.log('Initializing Knowledge Base...');
-
-    if (!fs.existsSync(KNOWLEDGE_FILE)) {
-        console.warn('Knowledge base file not found.');
-        vectorStore = [];
-        return;
-    }
-
-    const text = fs.readFileSync(KNOWLEDGE_FILE, 'utf8');
-    const chunks = chunkText(text, 500);
-
-    vectorStore = chunks.map(chunk => ({
-        text: chunk,
-        tokens: tokenize(chunk)
-    }));
-
-    console.log(`Knowledge base loaded dengan ${vectorStore.length} potongan informasi.`);
-}
 
 function chunkText(text, maxLength) {
     const sentences = text.split(/(?<=\.)\s+/);
     const chunks = [];
-    let currentChunk = '';
+    let current = '';
 
     for (const sentence of sentences) {
-        if ((currentChunk + sentence).length > maxLength) {
-            if (currentChunk.trim()) {
-                chunks.push(currentChunk.trim());
-            }
-            currentChunk = '';
+        if ((current + sentence).length > maxLength) {
+            if (current.trim()) chunks.push(current.trim());
+            current = '';
         }
-        currentChunk += sentence + ' ';
+        current += sentence + ' ';
     }
-
-    if (currentChunk.trim()) {
-        chunks.push(currentChunk.trim());
-    }
-
+    if (current.trim()) chunks.push(current.trim());
     return chunks;
 }
 
@@ -55,27 +30,82 @@ function tokenize(text) {
         .filter(Boolean);
 }
 
-function searchRelevantContext(query) {
-    if (!vectorStore.length || !query) return '';
+function buildVectorStoreFromFile() {
+    if (!fs.existsSync(KNOWLEDGE_FILE)) {
+        console.warn('Knowledge base file not found, skip indexing.');
+        vectorStore = [];
+        return;
+    }
+
+    const text = fs.readFileSync(KNOWLEDGE_FILE, 'utf8');
+    const chunks = chunkText(text, 800);
+
+    vectorStore = chunks.map(chunk => ({
+        text: chunk,
+        tokens: tokenize(chunk)
+    }));
+
+    fs.writeFileSync(VECTOR_STORE_FILE, JSON.stringify(vectorStore, null, 2));
+    console.log(`Vector store built (lexical): ${vectorStore.length} chunks.`);
+}
+
+function loadVectorStore() {
+    if (fs.existsSync(VECTOR_STORE_FILE)) {
+        try {
+            const raw = fs.readFileSync(VECTOR_STORE_FILE, 'utf8');
+            const data = JSON.parse(raw);
+            if (Array.isArray(data)) {
+                vectorStore = data.map(item => ({
+                    text: item.text,
+                    tokens: Array.isArray(item.tokens) ? item.tokens : tokenize(item.text || '')
+                }));
+                console.log(`Vector store loaded: ${vectorStore.length} chunks.`);
+                return true;
+            }
+        } catch (err) {
+            console.error('Gagal memuat vector_store, akan rebuild:', err);
+        }
+    }
+    return false;
+}
+
+async function initializeKnowledgeBase() {
+    try {
+        const loaded = loadVectorStore();
+        if (!loaded) {
+            buildVectorStoreFromFile();
+        }
+    } catch (err) {
+        console.error('Gagal inisialisasi knowledge base:', err);
+        vectorStore = [];
+    }
+}
+
+function searchRelevantContext(query, topK = 3) {
+    if (!query || !vectorStore.length) return '';
 
     const queryTokens = tokenize(query);
     if (!queryTokens.length) return '';
 
-    const scoredChunks = vectorStore
+    const scored = vectorStore
         .map(chunk => ({
             text: chunk.text,
-            score: computeTokenOverlap(queryTokens, chunk.tokens)
+            score: tokenOverlapScore(queryTokens, chunk.tokens || tokenize(chunk.text || ''))
         }))
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 3);
+        .slice(0, topK);
 
-    return scoredChunks.map(chunk => chunk.text).join('\n\n');
+    return scored.map(item => item.text).join('\n\n');
 }
 
-function computeTokenOverlap(queryTokens, chunkTokens) {
-    const tokenSet = new Set(chunkTokens);
-    return queryTokens.reduce((acc, token) => acc + (tokenSet.has(token) ? 1 : 0), 0);
+function tokenOverlapScore(queryTokens, chunkTokens) {
+    const setChunk = new Set(chunkTokens);
+    let score = 0;
+    for (const token of queryTokens) {
+        if (setChunk.has(token)) score += 1;
+    }
+    return score;
 }
 
 module.exports = {
