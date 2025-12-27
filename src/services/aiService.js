@@ -7,12 +7,11 @@ const { GROQ_API_KEY, GEMINI_API_KEY } = require('../config/env');
 const { getSystemPrompt } = require('../data/prompt');
 
 const TEXT_MODEL = 'gemma-3-27b-it';
-const GEMINI_VISION_MODEL = 'gemma-3-27b-it';
+const GROQ_VISION_MODEL = 'llama-3.2-11b-vision-instruct';
 const VOICE_MODEL = 'whisper-large-v3-turbo';
 
 const googleClient = new GoogleGenerativeAI(GEMINI_API_KEY);
 const gemmaModel = googleClient.getGenerativeModel({ model: TEXT_MODEL });
-const visionModel = googleClient.getGenerativeModel({ model: GEMINI_VISION_MODEL });
 
 function formatDateTime() {
     const now = new Date();
@@ -83,36 +82,56 @@ async function generateAIResponse(sender, text, historyLogs, specialContact, urg
     }
 }
 
-async function generateVisionResponse(text, mediaData) {
+async function describeImageWithGroq(mediaData, prompt) {
+    const base64Url = `data:${mediaData.mimetype};base64,${mediaData.data}`;
+    const messages = [
+        {
+            role: 'system',
+            content: "Deskripsikan gambar secara ringkas dan faktual."
+        },
+        {
+            role: 'user',
+            content: [
+                { type: 'text', text: prompt || 'Deskripsikan gambar ini.' },
+                { type: 'image_url', image_url: { url: base64Url } }
+            ]
+        }
+    ];
+
+    const completion = await groqClient.chat.completions.create({
+        model: GROQ_VISION_MODEL,
+        messages,
+        max_tokens: 512,
+        temperature: 0.2
+    });
+
+    return extractTextFromCompletion(completion) || '';
+}
+
+async function generateVisionResponse(sender, text, historyLogs, specialContact, urgentNote, retrievedContext, mediaData) {
     if (!mediaData) {
         return "Tidak ada media yang bisa dianalisis.";
     }
 
-    const prompt = text?.trim() ? text : "Jelaskan media ini secara detail.";
-    const base64Data = mediaData.data;
-
     try {
-        const result = await visionModel.generateContent({
-            contents: [
-                {
-                    role: 'user',
-                    parts: [
-                        { text: prompt },
-                        { inlineData: { data: base64Data, mimeType: mediaData.mimetype } }
-                    ]
-                }
-            ],
-            generationConfig: {
-                temperature: 0.3,
-                maxOutputTokens: 1024
-            }
-        });
+        const description = await describeImageWithGroq(mediaData, text);
+        const combinedUserText = [
+            text ? `Pesan pengguna: ${text}` : null,
+            description ? `Deskripsi gambar: ${description}` : null
+        ].filter(Boolean).join('\n\n');
 
-        const textResp = await result.response.text();
-        return textResp?.trim?.() || "Tidak ada respons dari analisis gambar.";
+        // Gunakan jalur jawaban utama supaya konteks tetap dipakai
+        return await generateAIResponse(
+            sender,
+            combinedUserText || description || text || 'Gambar tanpa deskripsi.',
+            historyLogs,
+            specialContact,
+            urgentNote,
+            retrievedContext
+        );
     } catch (error) {
-        console.error("Error Vision Gemini:", error);
-        return "Maaf, belum bisa membaca media yang dikirim.";
+        console.error("Error Vision Groq->Gemma:", error);
+        return "Maaf, belum bisa memproses gambar saat ini.";
     }
 }
 

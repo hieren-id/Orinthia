@@ -311,7 +311,15 @@ async function processAIResponse(msgInstance, promptSenderName, textInput, chatI
 
     let fullResponse;
     if (mediaData) {
-        fullResponse = await generateVisionResponse(textInput, mediaData);
+        fullResponse = await generateVisionResponse(
+            promptSenderName,
+            textInput,
+            historyLogs,
+            specialContact,
+            getUrgentNote(),
+            retrievedContext,
+            mediaData
+        );
     } else {
         fullResponse = await generateAIResponse(promptSenderName, textInput, historyLogs, specialContact, getUrgentNote(), retrievedContext);
     }
