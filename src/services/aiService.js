@@ -1,11 +1,22 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const groqClient = require('../core/groq');
+const { GROQ_API_KEY, GEMINI_API_KEY } = require('../config/env');
 const { getSystemPrompt } = require('../data/prompt');
 
-const TEXT_MODEL = 'llama-3.3-70b-versatile';
+const TEXT_MODEL = 'gemma-3-27b-it';
+const GROQ_VISION_MODEL = 'llama-3.2-11b-vision-instruct';
 const VOICE_MODEL = 'whisper-large-v3-turbo';
+
+if (!GEMINI_API_KEY) {
+    console.error('Gemini ERROR: API Key belum diisi di file .env (GEMINI_API_KEY)!');
+    process.exit(1);
+}
+
+const googleClient = new GoogleGenerativeAI(GEMINI_API_KEY);
+const gemmaModel = googleClient.getGenerativeModel({ model: TEXT_MODEL });
 
 function formatDateTime() {
     const now = new Date();
@@ -33,9 +44,26 @@ function extractTextFromCompletion(completion) {
     return (messageContent || '').trim();
 }
 
-async function createChatCompletion(messages, { temperature = 0.4, max_tokens = 2048 } = {}) {
+async function createGeminiCompletion(prompt, { temperature = 0.4, maxOutputTokens = 2048 } = {}) {
+    const result = await gemmaModel.generateContent({
+        contents: [
+            {
+                role: 'user',
+                parts: [{ text: prompt }]
+            }
+        ],
+        generationConfig: {
+            temperature,
+            maxOutputTokens
+        }
+    });
+    const text = await result.response.text();
+    return text?.trim?.() || '';
+}
+
+async function createGroqChat(messages, { temperature = 0.4, max_tokens = 1024, model = GROQ_VISION_MODEL } = {}) {
     const completion = await groqClient.chat.completions.create({
-        model: TEXT_MODEL,
+        model,
         temperature,
         max_tokens,
         messages
@@ -58,15 +86,14 @@ async function generateAIResponse(sender, text, historyLogs, specialContact, urg
 
         const userPrompt = text?.trim() ? text : "Lanjutkan respons berdasarkan konteks.";
 
-        const responseText = await createChatCompletion([
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-        ], { temperature: 0.35, max_tokens: 2048 });
+        const fullPrompt = `${systemPrompt}\n\n[PESAN USER TERAKHIR]:\n${userPrompt}`;
+
+        const responseText = await createGeminiCompletion(fullPrompt, { temperature: 0.35, maxOutputTokens: 2048 });
 
         return responseText || "Maaf, Reika belum bisa menjawab saat ini.";
     } catch (error) {
-        console.error("Error Groq Chat:", error);
-        return "Maaf, Reika sedang gangguan (Groq Error).";
+        console.error("Error Gemini Chat:", error);
+        return "Maaf, Reika sedang gangguan (Gemini Error).";
     }
 }
 
@@ -79,7 +106,7 @@ async function generateVisionResponse(text, mediaData) {
     const base64Url = `data:${mediaData.mimetype};base64,${mediaData.data}`;
 
     try {
-        return await createChatCompletion([
+        return await createGroqChat([
             {
                 role: 'system',
                 content: "Kamu membantu menganalisis media yang dikirimkan user."
@@ -91,7 +118,7 @@ async function generateVisionResponse(text, mediaData) {
                     { type: 'image_url', image_url: { url: base64Url } }
                 ]
             }
-        ], { temperature: 0.3, max_tokens: 1024 });
+        ], { temperature: 0.3, max_tokens: 1024, model: GROQ_VISION_MODEL });
     } catch (error) {
         console.error("Error Vision Groq:", error);
         return "Maaf, belum bisa membaca media yang dikirim.";
@@ -100,16 +127,14 @@ async function generateVisionResponse(text, mediaData) {
 
 async function generateGroqSummary(textData) {
     try {
-        return await createChatCompletion([
-            {
-                role: 'system',
-                content: "Buat ringkasan percakapan WhatsApp dalam bahasa Indonesia, gunakan bullet point per pengirim dan ambil informasi penting saja."
-            },
-            {
-                role: 'user',
-                content: textData
-            }
-        ], { temperature: 0.2, max_tokens: 1024 });
+        const prompt = [
+            "Buat ringkasan percakapan WhatsApp dalam bahasa Indonesia.",
+            "- Format bullet point per pengirim.",
+            "- Ambil informasi penting saja.",
+            "- Tetap singkat."
+        ].join('\n');
+
+        return await createGeminiCompletion(`${prompt}\n\n${textData}`, { temperature: 0.2, maxOutputTokens: 1024 });
     } catch (error) {
         console.error("Error membuat ringkasan:", error);
         return "Gagal membuat ringkasan.";
