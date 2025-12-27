@@ -47,6 +47,9 @@ function getMentionedIds(msg) {
     if (Array.isArray(msg._data?.mentionedJidList)) {
         return msg._data.mentionedJidList.filter(id => typeof id === 'string');
     }
+    if (Array.isArray(msg._data?.contextInfo?.mentionedJidList)) {
+        return msg._data.contextInfo.mentionedJidList.filter(id => typeof id === 'string');
+    }
     return [];
 }
 
@@ -139,7 +142,18 @@ async function handleMessage(msg) {
     const senderNumber = senderId ? senderId.replace('@c.us', '') : '';
     const senderName = msg._data?.notifyName || senderNumber || 'Pengirim';
     const chatIdContext = chat.id._serialized;
-    const mentionedIds = getMentionedIds(msg);
+    let mentionedIds = getMentionedIds(msg);
+    if ((!mentionedIds || mentionedIds.length === 0) && typeof msg.getMentions === 'function') {
+        try {
+            const contacts = await msg.getMentions();
+            mentionedIds = contacts
+                .map(c => c?.id?._serialized)
+                .filter(id => typeof id === 'string');
+        } catch (err) {
+            console.error('Gagal mengambil mentions:', err);
+            mentionedIds = [];
+        }
+    }
     const botMentioned = isBotMentioned(chat, mentionedIds);
     const isFromMe = msg.fromMe === true;
     const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
