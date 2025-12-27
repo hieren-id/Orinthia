@@ -145,6 +145,16 @@ async function handleMessage(msg) {
     const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
     const isOwner = OWNER_NUMBER ? normalizeNumber(senderNumber) === normalizeNumber(OWNER_NUMBER) : false;
     const isCommand = lowerBody.startsWith('!');
+    let isReplyToBot = false;
+
+    if (msg.hasQuotedMsg) {
+        try {
+            const quoted = await msg.getQuotedMessage();
+            isReplyToBot = !!quoted?.fromMe;
+        } catch (err) {
+            console.error('Gagal memeriksa quoted message:', err);
+        }
+    }
 
     const specialContact = isGroup ? null : getSpecialContact(senderId, senderName);
     const promptContact = specialContact?.instruction ? specialContact : null;
@@ -207,8 +217,9 @@ async function handleMessage(msg) {
     if (!getBotStatus()) return;
 
     const hasPrefix = lowerBody.startsWith('!reika');
+    const ownerMentioned = mentionedIds.some(id => normalizeNumber(id) === normalizeNumber(OWNER_NUMBER || ''));
     const shouldRespond = isGroup
-        ? (botMentioned || hasPrefix)
+        ? (botMentioned || isReplyToBot || ownerMentioned)
         : (!isFromMe || hasPrefix);
     if (!shouldRespond) return;
 
@@ -245,7 +256,7 @@ async function handleMessage(msg) {
     recordIncoming(chatIdContext, senderName, userText);
     scheduleChatSummary(chatIdContext, contactMeta);
 
-    const promptSenderName = isOwner ? 'Karel' : senderName;
+    const promptSenderName = isGroup ? (chat.name || senderName) : (isOwner ? 'Karel' : senderName);
 
     const payload = {
         msgInstance: msg,
