@@ -14,6 +14,7 @@ const { generateAIResponse, generateGroqSummary, generateVisionResponse, transcr
 const { searchRelevantContext } = require('../services/ragService');
 const { getSpecialContact } = require('../services/contactService');
 const { setBotStatus, getBotStatus } = require('../utils/state');
+const { OWNER_NUMBER } = require('../config/env');
 
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
@@ -74,6 +75,10 @@ function applyHeader(replyText) {
     const trimmed = replyText.trim();
     if (trimmed.startsWith(header)) return trimmed;
     return `${header}\n\n${trimmed}`;
+}
+
+function normalizeNumber(num = '') {
+    return (num || '').replace(/\D/g, '');
 }
 
 function buildContactMeta(specialContact, senderName, senderNumber) {
@@ -138,12 +143,17 @@ async function handleMessage(msg) {
     const botMentioned = isBotMentioned(chat, mentionedIds);
     const isFromMe = msg.fromMe === true;
     const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
+    const isOwner = OWNER_NUMBER ? normalizeNumber(senderNumber) === normalizeNumber(OWNER_NUMBER) : false;
+    const isCommand = lowerBody.startsWith('!');
 
     const specialContact = isGroup ? null : getSpecialContact(senderId, senderName);
     const promptContact = specialContact?.instruction ? specialContact : null;
     const contactMeta = isGroup ? buildGroupMeta(chat) : buildContactMeta(specialContact, senderName, senderNumber);
 
-    // Commands (always available)
+    // Batasi command hanya untuk owner
+    if (isCommand && !isOwner) return;
+
+    // Commands (owner only)
     if (lowerBody === '!aktif') {
         setBotStatus(true);
         await msg.reply('Bot diaktifkan.');
@@ -236,9 +246,12 @@ async function handleMessage(msg) {
     recordIncoming(chatIdContext, senderName, userText);
     scheduleChatSummary(chatIdContext, contactMeta);
 
+    const promptSenderName = isOwner ? 'Karel' : senderName;
+
     const payload = {
         msgInstance: msg,
         senderName,
+        promptSenderName,
         textInput: userText,
         chatIdContext,
         specialContact: promptContact,
@@ -278,7 +291,7 @@ async function flushPrivateQueue(chatId) {
 
     await processAIResponse(
         latest.msgInstance,
-        latest.senderName,
+        latest.promptSenderName,
         combinedText || (mediaData ? '[media]' : ''),
         chatId,
         latest.specialContact,
