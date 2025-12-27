@@ -73,7 +73,7 @@ function applyHeader(replyText) {
     if (!replyText) return header;
     const trimmed = replyText.trim();
     if (trimmed.startsWith(header)) return trimmed;
-    return `${header}\n${trimmed}`;
+    return `${header}\n\n${trimmed}`;
 }
 
 function buildContactMeta(specialContact, senderName, senderNumber) {
