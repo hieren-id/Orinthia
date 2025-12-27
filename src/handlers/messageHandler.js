@@ -242,8 +242,9 @@ async function handleMessage(msg) {
 
     const hasPrefix = lowerBody.startsWith('!reika');
     const ownerMentioned = mentionedIds.some(id => normalizeNumber(id) === normalizeNumber(OWNER_NUMBER || ''));
+    const anyMention = mentionedIds.length > 0;
     const shouldRespond = isGroup
-        ? (botMentioned || isReplyToBot || ownerMentioned)
+        ? (botMentioned || isReplyToBot || ownerMentioned || anyMention || hasPrefix)
         : (!isFromMe || hasPrefix);
     if (!shouldRespond) return;
 
