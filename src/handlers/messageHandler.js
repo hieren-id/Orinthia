@@ -14,7 +14,6 @@ const { generateAIResponse, generateGroqSummary, generateVisionResponse, transcr
 const { searchRelevantContext } = require('../services/ragService');
 const { getSpecialContact } = require('../services/contactService');
 const { setBotStatus, getBotStatus } = require('../utils/state');
-const { OWNER_NUMBER } = require('../config/env');
 
 const privateMessageQueues = new Map();
 const privateDebounceTimers = new Map();
@@ -78,10 +77,6 @@ function applyHeader(replyText) {
     const trimmed = replyText.trim();
     if (trimmed.startsWith(header)) return trimmed;
     return `${header}\n\n${trimmed}`;
-}
-
-function normalizeNumber(num = '') {
-    return (num || '').replace(/\D/g, '');
 }
 
 function buildContactMeta(specialContact, senderName, senderNumber) {
@@ -167,8 +162,6 @@ async function handleMessage(msg) {
     const botMentioned = isBotMentioned(chat, mentionedIds);
     const isFromMe = msg.fromMe === true;
     const isVoiceNote = msg.type === 'ptt' || msg._data?.isVoice === true;
-    const isOwner = OWNER_NUMBER ? normalizeNumber(senderNumber) === normalizeNumber(OWNER_NUMBER) : false;
-    const isCommand = lowerBody.startsWith('!');
     let isReplyToBot = false;
 
     if (msg.hasQuotedMsg) {
@@ -183,9 +176,6 @@ async function handleMessage(msg) {
     const specialContact = isGroup ? null : getSpecialContact(senderId, senderName);
     const promptContact = specialContact?.instruction ? specialContact : null;
     const contactMeta = isGroup ? buildGroupMeta(chat) : buildContactMeta(specialContact, senderName, senderNumber);
-
-    // Batasi command hanya untuk owner
-    if (isCommand && !isOwner) return;
 
     // Commands (owner only)
     if (lowerBody === '!aktif') {
@@ -240,10 +230,8 @@ async function handleMessage(msg) {
 
     if (!getBotStatus()) return;
 
-    const hasPrefix = lowerBody.startsWith('!reika');
-    const ownerMentioned = mentionedIds.some(id => normalizeNumber(id) === normalizeNumber(OWNER_NUMBER || ''));
     const shouldRespond = isGroup
-        ? (botMentioned || isReplyToBot || ownerMentioned || hasPrefix)
+        ? (botMentioned || isReplyToBot || hasPrefix)
         : (!isFromMe || hasPrefix);
     if (!shouldRespond) return;
 
@@ -280,7 +268,7 @@ async function handleMessage(msg) {
     recordIncoming(chatIdContext, senderName, userText);
     scheduleChatSummary(chatIdContext, contactMeta);
 
-    const promptSenderName = isGroup ? (chat.name || senderName) : (isOwner ? 'Karel' : senderName);
+    const promptSenderName = isGroup ? (chat.name || senderName) : senderName;
 
     const payload = {
         msgInstance: msg,
