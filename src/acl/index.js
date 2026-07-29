@@ -7,6 +7,14 @@ function normalizeNumber(jid) {
   return num;
 }
 
+// A real WhatsApp group ID is a bare numeric string (or the older
+// digits-digits form). Anything else (e.g. a display name mistakenly stored
+// as group_id) can't become a real destination, even though it'll happily
+// build a JID-shaped string and let a send call resolve without erroring.
+function looksLikeGroupId(id) {
+  return /^\d+(-\d+)?$/.test(id || '');
+}
+
 function isWhitelistedNumber(number) {
   const norm = normalizeNumber(number);
   const contacts = db.getAllContacts();
@@ -64,6 +72,7 @@ function canAccessGroupInfo(personNumber, groupId) {
 
 module.exports = {
   normalizeNumber,
+  looksLikeGroupId,
   isWhitelistedNumber,
   isWhitelistedGroup,
   getContact,

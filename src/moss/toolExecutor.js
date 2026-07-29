@@ -18,7 +18,11 @@ function resolveJid(target, client) {
   // which can address a different session than the one they're viewing.
   if (contact) return contact.last_jid || `${acl.normalizeNumber(contact.nomor)}@s.whatsapp.net`;
   const group = acl.getGroupByName(target);
-  if (group && group.group_id) return `${group.group_id}@g.us`;
+  // group_id can hold a display name instead of a real WhatsApp ID (e.g. a
+  // group whose .env-configured value was never repaired because the bot
+  // isn't a member yet) — that builds a JID-shaped string that silently
+  // goes nowhere instead of erroring, so refuse to use it as a target.
+  if (group && group.group_id && acl.looksLikeGroupId(group.group_id)) return `${group.group_id}@g.us`;
   if (/^\d+$/.test(target)) return `${target}@s.whatsapp.net`;
   return null;
 }
