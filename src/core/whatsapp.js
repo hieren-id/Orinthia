@@ -6,6 +6,23 @@ const baileysLogger = pino({ level: 'silent' });
 const logger = require('../utils/logger');
 let sock = null;
 
+// WhatsApp/Baileys occasionally delivers the same message via more than one
+// messages.upsert event (e.g. a redelivery that lacks the sender_pn/
+// participant_pn attributes the first delivery had, resolving to a raw @lid
+// that then gets rejected as unauthorized). Drop anything we've already
+// handled recently — message IDs are unique, a short in-memory window is
+// enough since duplicates land within milliseconds of each other.
+const recentMessageIds = new Set();
+const RECENT_ID_TTL_MS = 60_000;
+
+function isDuplicateMessage(msgId) {
+  if (!msgId) return false;
+  if (recentMessageIds.has(msgId)) return true;
+  recentMessageIds.add(msgId);
+  setTimeout(() => recentMessageIds.delete(msgId), RECENT_ID_TTL_MS);
+  return false;
+}
+
 async function initializeWhatsApp(messageHandler) {
   const authDir = path.join(__dirname, '..', '..', 'baileys_auth');
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
@@ -35,6 +52,10 @@ async function initializeWhatsApp(messageHandler) {
     if (type !== 'notify') return;
     for (const msg of messages) {
       if (!msg.message || msg.key.fromMe) continue;
+      if (isDuplicateMessage(msg.key.id)) {
+        logger.debug({ msgId: msg.key.id }, 'Duplicate message delivery ignored');
+        continue;
+      }
       if (messageHandler) {
         try {
           await messageHandler(msg);
