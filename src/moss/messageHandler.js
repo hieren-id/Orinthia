@@ -26,7 +26,14 @@ function isBotActive() { return botActive; }
 async function handleMessage(msg, ctx) {
   const { isFrozen } = ctx;
 
-  const senderJid = msg.key.participant || msg.key.remoteJid;
+  const rawSenderJid = msg.key.participant || msg.key.remoteJid;
+  // WhatsApp's phone-number privacy feature can address a chat/participant by an
+  // opaque @lid instead of the real number; Baileys surfaces the real number
+  // alongside it as participantPn/senderPn — prefer that when present.
+  const senderJid = msg.key.participantPn || msg.key.senderPn || rawSenderJid;
+  if (rawSenderJid?.endsWith('@lid') && senderJid !== rawSenderJid) {
+    logger.debug({ lid: rawSenderJid, pn: senderJid }, 'Resolved @lid sender via senderPn/participantPn');
+  }
   const chatJid = msg.key.remoteJid;
   const isGroup = wa.isGroupJid(chatJid);
   const senderNumber = wa.normalizeNumber(senderJid);

@@ -73,7 +73,7 @@ function isGroupJid(jid) {
 
 function normalizeNumber(jid) {
   if (!jid) return '';
-  return jid.replace(/@s\.whatsapp\.net|@g\.us/g, '');
+  return jid.replace(/@s\.whatsapp\.net|@g\.us|@lid/g, '');
 }
 
 function extractMessageText(msg) {
