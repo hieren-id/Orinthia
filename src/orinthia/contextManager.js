@@ -90,7 +90,8 @@ function buildGroupsSection() {
       const parsed = typeof g.anggota === 'string' ? JSON.parse(g.anggota) : g.anggota;
       anggota = parsed.map(a => `${a.nama} (${a.nomor})`).join(', ') || 'belum ada anggota';
     } catch {}
-    return `- ${g.nama} [ID: ${g.group_id}]\n  Anggota: ${anggota}`;
+    const namaAsli = g.nama_asli && g.nama_asli !== g.nama ? ` (nama asli WhatsApp: "${g.nama_asli}")` : '';
+    return `- ${g.nama}${namaAsli} [ID: ${g.group_id}]\n  Anggota: ${anggota}`;
   }).join('\n');
   return `## Daftar Putih Grup\n${formatted}`;
 }

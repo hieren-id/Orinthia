@@ -131,10 +131,23 @@ async function handleMessage(msg, ctx) {
       const metaName = meta?.subject || '';
       const configGroup = config.WHITELISTED_GROUPS.find(g => g.nama.toLowerCase() === metaName.toLowerCase());
       if (configGroup) {
-        db.registerGroup(configGroup.nama, wa.normalizeNumber(chatJid));
+        db.registerGroup(configGroup.nama, wa.normalizeNumber(chatJid), [], metaName);
         groupInfo = acl.getGroup(chatJid);
         groupName = configGroup.nama;
         logger.info({ groupName, chatJid }, 'Group auto-registered');
+      }
+    } catch {}
+  } else if (groupInfo && !groupInfo.nama_asli && ctx.client) {
+    // Group was registered another way (e.g. group_id set directly in .env)
+    // without ever capturing its real WhatsApp title — backfill it so
+    // REPLY targets using that title (not just the internal shorthand)
+    // resolve correctly via acl.getGroupByName.
+    try {
+      const meta = await ctx.client.groupMetadata(chatJid);
+      if (meta?.subject) {
+        db.updateGroupSubject(wa.normalizeNumber(chatJid), meta.subject);
+        groupInfo.nama_asli = meta.subject;
+        logger.info({ groupName: groupInfo.nama, namaAsli: meta.subject }, 'Group real name backfilled');
       }
     } catch {}
   }

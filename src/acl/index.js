@@ -40,7 +40,11 @@ function getGroup(groupId) {
 
 function getGroupByName(name) {
   const groups = db.getAllGroups();
-  const found = groups.find(g => g.nama.toLowerCase() === name.toLowerCase());
+  const target = name.toLowerCase();
+  // Match either the internal shorthand name (e.g. "P2MW Hieren", used in
+  // config/system-prompt) or the group's actual WhatsApp title, since a
+  // human or Orinthia may refer to a group either way.
+  const found = groups.find(g => g.nama.toLowerCase() === target || (g.nama_asli && g.nama_asli.toLowerCase() === target));
   if (found && typeof found.anggota === 'string') {
     found.anggota = JSON.parse(found.anggota);
   }

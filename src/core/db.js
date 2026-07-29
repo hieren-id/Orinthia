@@ -24,6 +24,10 @@ function migrateSchema() {
   if (!kontakColumns.includes('last_jid')) {
     db.exec(`ALTER TABLE kontak ADD COLUMN last_jid TEXT`);
   }
+  const grupColumns = db.prepare(`PRAGMA table_info(grup)`).all().map(c => c.name);
+  if (!grupColumns.includes('nama_asli')) {
+    db.exec(`ALTER TABLE grup ADD COLUMN nama_asli TEXT`);
+  }
 }
 
 function getDb() {
@@ -86,6 +90,7 @@ function createTables() {
     CREATE TABLE IF NOT EXISTS grup (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nama TEXT NOT NULL,
+      nama_asli TEXT,
       group_id TEXT UNIQUE NOT NULL,
       anggota TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -287,12 +292,18 @@ function getGroupById(group_id) {
   return db.prepare(`SELECT * FROM grup WHERE group_id = ?`).get(group_id);
 }
 
-function registerGroup(nama, group_id, anggota = []) {
+function registerGroup(nama, group_id, anggota = [], nama_asli = null) {
   const existing = db.prepare(`SELECT * FROM grup WHERE nama = ?`).get(nama);
   if (existing) {
-    return db.prepare(`UPDATE grup SET group_id = ?, anggota = ? WHERE nama = ?`).run(group_id, JSON.stringify(anggota), nama);
+    return db.prepare(`UPDATE grup SET group_id = ?, anggota = ?, nama_asli = COALESCE(?, nama_asli) WHERE nama = ?`).run(group_id, JSON.stringify(anggota), nama_asli, nama);
   }
-  return db.prepare(`INSERT INTO grup (nama, group_id, anggota) VALUES (?, ?, ?)`).run(nama, group_id, JSON.stringify(anggota));
+  return db.prepare(`INSERT INTO grup (nama, group_id, anggota, nama_asli) VALUES (?, ?, ?, ?)`).run(nama, group_id, JSON.stringify(anggota), nama_asli);
+}
+
+// Backfills the real WhatsApp group title for groups registered before this
+// field existed, or seeded manually via .env without ever calling groupMetadata.
+function updateGroupSubject(group_id, nama_asli) {
+  return db.prepare(`UPDATE grup SET nama_asli = ? WHERE group_id = ?`).run(nama_asli, group_id);
 }
 
 // ─── Scheduler ───
@@ -410,6 +421,7 @@ module.exports = {
   getGroupByName,
   getGroupById,
   registerGroup,
+  updateGroupSubject,
   updateSchedulerStatus,
   getSchedulerStatus,
   updateEvaluasiStatus,
