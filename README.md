@@ -116,10 +116,23 @@ Sistem dalam keadaan **aktif** secara default saat pertama kali dijalankan. Stat
 - **Indikator freeze** selama pipeline berjalan
 
 ### Evaluasi Terjadwal
-- **19.30** — pertanyaan evaluasi dikirim ke seluruh anggota tim
-- **20.30** — pengingat pertama ke yang belum menjawab
-- **21.30** — pengingat terakhir
-- **22.00** — pipeline otomatis: laporan → condense → flush → restore
+Hanya pipeline **22.00** yang hardcoded (laporan → condense → flush → restore) — langkahnya bukan sesuatu yang aman diserahkan ke instruksi bahasa natural.
+
+Penanyaan/pengingat evaluasi (dulunya hardcoded jam 19.30/20.30/21.30) sekarang adalah baris `berulang` di tabel `pengingat`, di-seed otomatis sekali saat pertama kali dijalankan (lihat `src/scheduler/reminders.js`, `DEFAULT_REMINDERS`):
+
+| Jadwal (cron) | Terpicu | Isi |
+|---|---|---|
+| `30 19 * * *` | tiap hari 19.30 | reset status hari ini, tanya evaluasi harian |
+| `30 19 * * 0` | tiap Minggu 19.30 | tanya evaluasi mingguan (tambahan) |
+| `30 19 28 * *` | tiap tanggal 28, 19.30 | tanya evaluasi bulanan (tambahan) |
+| `30 19 28 3,6,9,12 *` | 28 Maret/Jun/Sep/Des, 19.30 | tanya evaluasi kuartalan (tambahan) |
+| `30 19 28 12 *` | 28 Desember, 19.30 | tanya evaluasi tahunan (tambahan) |
+| `30 20 * * *` | tiap hari 20.30 | cek GET_EVAL_STATUS, ingatkan yang belum selesai |
+| `30 21 * * *` | tiap hari 21.30 | pengingat terakhir, sama seperti di atas |
+
+Karena tiap tingkat evaluasi punya jadwal cron sendiri (bukan satu pengingat gabungan yang minta Orinthia menghitung sendiri tingkat mana yang jatuh tempo), tidak ada ambiguitas soal tingkat mana yang seharusnya ditanyakan hari itu — jadwalnya sendiri yang menentukan, bukan penilaian model.
+
+Karel (lewat Orinthia) bisa mengubah, menambah, atau membatalkan pengingat ini kapan saja lewat `CREATE_REMINDER`/`CANCEL_REMINDER`/`LIST_REMINDERS` — lihat bagian Tool Calling di bawah.
 
 ### Pipeline Berjenjang
 Sistem evaluasi dan laporan berjenjang, dipicu berdasarkan kalender asli (bukan siklus hari tetap):
@@ -152,7 +165,12 @@ Orinthia berkomunikasi dengan dunia luar melalui format teks khusus:
 | `GET_MEMORY` | Ambil memori permanen |
 | `DELETE_MEMORY` | Hapus memori permanen |
 | `REQUEST_REVISION` | Ajukan revisi hardcode |
+| `UPDATE_EVAL` | Perbarui status evaluasi seseorang |
+| `GET_EVAL_STATUS` | Cek status evaluasi seluruh tim untuk suatu tanggal |
 | `FLUSH` | Flush data sesuai retensi |
+| `CREATE_REMINDER` | Buat pengingat untuk diri sendiri (sekali atau berulang/cron) |
+| `LIST_REMINDERS` | Lihat daftar pengingat aktif |
+| `CANCEL_REMINDER` | Batalkan pengingat aktif |
 
 ### Revisi Hardcode
 Ketika Karel meminta perubahan yang menyangkut data hardcode (system prompt, kontak, grup, jadwal), Orinthia menyimpannya ke tabel `revisi_hardcode`. Revisi diterapkan pada update berikutnya.
@@ -193,7 +211,9 @@ Laporan dan memori Orinthia bersifat **permanen**.
     ├── orinthia/
     │   ├── promptBuilder.js         ← assemble system prompt
     │   └── contextManager.js        ← manage conversation context
-    ├── scheduler/index.js           ← cron jobs
+    ├── scheduler/
+    │   ├── index.js                  ← cron: pipeline 22.00 (satu-satunya jadwal tetap)
+    │   └── reminders.js              ← pengingat sekali/berulang, CRUD via tool calling
     ├── acl/index.js                 ← access control
     └── utils/
         ├── logger.js                ← logging

@@ -76,6 +76,9 @@ Perbarui status evaluasi anggota tim. Status: belum, sebagian, selesai.
 Contoh: <<MOSS|UPDATE_EVAL|62895414096335|selesai|Sudah lengkap>>
 Gunakan ini setelah menerima dan menilai jawaban evaluasi dari anggota tim.
 
+<<MOSS|GET_EVAL_STATUS|tanggal>>
+Ambil status evaluasi seluruh anggota tim untuk tanggal tertentu (kosongkan untuk hari ini). Gunakan ini pada pengingat evaluasi (20.30/21.30) untuk menentukan siapa yang masih perlu diingatkan — jangan kirim pengingat ke yang sudah 'selesai'.
+
 <<MOSS|FLUSH|level>>
 Flush data sesuai aturan retensi.
 

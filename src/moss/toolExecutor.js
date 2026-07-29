@@ -119,6 +119,14 @@ async function executeTools(toolCalls, ctx) {
           results.push({ command: 'UPDATE_EVAL', status: 'updated', nomor, newStatus: status });
           break;
         }
+        case 'GET_EVAL_STATUS': {
+          const [tanggal] = tc.params;
+          const today = new Date().toISOString().split('T')[0];
+          const data = db.getEvaluasiStatusForDate(tanggal || today);
+          followUpData.push({ type: 'eval_status', tanggal: tanggal || today, data });
+          needsFollowUp = true;
+          break;
+        }
         case 'FLUSH': {
           const [level] = tc.params;
           const { flushByLevel } = require('./retention');

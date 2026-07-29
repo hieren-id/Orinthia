@@ -69,12 +69,66 @@ async function checkOneTimeReminders(ctx) {
   }
 }
 
+// The old scheduler asked whichever levels getDueEvaluationLevels() returned
+// in ONE combined prompt ("Kirim pertanyaan evaluasi harian, mingguan ke...")
+// — on a day when multiple levels were due, that left it up to the model to
+// keep every level straight in a single response, which is exactly where it
+// went wrong (asked mingguan, skipped harian). Splitting each level into its
+// own reminder with its own precise cron expression removes that ambiguity
+// entirely: the schedule itself — not model judgment — decides which levels
+// fire on a given day, and they can coincide (e.g. 28 Desember fires all
+// five independently) without either being lost in the other's prompt.
+const DEFAULT_REMINDERS = [
+  {
+    jadwal: '30 19 * * *',
+    pesan: 'Saatnya evaluasi HARIAN. Untuk setiap anggota tim (kecuali Mas Rafi/Stakeholder Hieren): pertama reset status evaluasinya hari ini ke \'belum\' via <<MOSS|UPDATE_EVAL|nomor|belum|>>, lalu kirim pertanyaan evaluasi harian ke PC masing-masing. Daftar anggota tim beserta nomornya ada di konteks (Daftar Putih Personal Chat).',
+  },
+  {
+    jadwal: '30 19 * * 0',
+    pesan: 'Hari ini juga terjadwal evaluasi MINGGUAN (di luar harian, yang ditanyakan lewat pengingat terpisah). Kirim pertanyaan evaluasi mingguan ke seluruh anggota tim (kecuali Mas Rafi) lewat PC masing-masing.',
+  },
+  {
+    jadwal: '30 19 28 * *',
+    pesan: 'Hari ini juga terjadwal evaluasi BULANAN (di luar harian, yang ditanyakan lewat pengingat terpisah). Kirim pertanyaan evaluasi bulanan ke seluruh anggota tim (kecuali Mas Rafi) lewat PC masing-masing.',
+  },
+  {
+    jadwal: '30 19 28 3,6,9,12 *',
+    pesan: 'Hari ini juga terjadwal evaluasi KUARTALAN (di luar harian, yang ditanyakan lewat pengingat terpisah). Kirim pertanyaan evaluasi kuartalan ke seluruh anggota tim (kecuali Mas Rafi) lewat PC masing-masing.',
+  },
+  {
+    jadwal: '30 19 28 12 *',
+    pesan: 'Hari ini juga terjadwal evaluasi TAHUNAN (di luar harian, yang ditanyakan lewat pengingat terpisah). Kirim pertanyaan evaluasi tahunan ke seluruh anggota tim (kecuali Mas Rafi) lewat PC masing-masing.',
+  },
+  {
+    jadwal: '30 20 * * *',
+    pesan: 'Pengingat evaluasi pertama. Cek <<MOSS|GET_EVAL_STATUS>> untuk hari ini. Kirim pengingat yang sopan hanya ke anggota tim yang statusnya masih \'belum\' atau \'sebagian\'. Kalau semua sudah \'selesai\', tidak perlu kirim apa pun.',
+  },
+  {
+    jadwal: '30 21 * * *',
+    pesan: 'Pengingat evaluasi TERAKHIR untuk hari ini. Cek <<MOSS|GET_EVAL_STATUS>>. Kirim pengingat dengan nada sopan namun tegas hanya ke anggota tim yang masih \'belum\' atau \'sebagian\'. Kalau semua sudah \'selesai\', tidak perlu kirim apa pun.',
+  },
+];
+
+// Runs exactly once, ever (guarded by system_state) — after that, these are
+// ordinary rows in `pengingat` and Karel/Orinthia can edit, retime, or
+// cancel them the same way as any reminder created through CREATE_REMINDER.
+function seedDefaultReminders() {
+  if (db.getSystemState('default_reminders_seeded') === 'true') return;
+  for (const r of DEFAULT_REMINDERS) {
+    db.createReminder('berulang', r.jadwal, r.pesan, 'system');
+  }
+  db.setSystemState('default_reminders_seeded', 'true');
+  logger.info({ count: DEFAULT_REMINDERS.length }, 'Default evaluation reminders seeded');
+}
+
 // Re-hydrates every still-active reminder into a live scheduler on process
 // start (recurring ones as real cron tasks; one-time ones are picked up by
 // the minute-by-minute poller below) and keeps checking for due one-time
 // reminders going forward. Call once at startup — calling it again would
 // register duplicate cron tasks for the same recurring reminders.
 function initReminders(ctx) {
+  seedDefaultReminders();
+
   const active = db.getActiveReminders();
   for (const reminder of active) {
     if (reminder.tipe === 'berulang') {

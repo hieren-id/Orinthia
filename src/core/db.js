@@ -395,11 +395,16 @@ function updateEvaluasiStatus(tanggal, nomor, status, jawaban = null) {
   `).run(tanggal, nomor, status, jawaban);
 }
 
-function getUnansweredEvaluasi(tanggal) {
+// Full status for every contact on a given date (defaults 'belum' when no
+// row exists yet), so Orinthia can decide herself who still needs a
+// follow-up reminder via GET_EVAL_STATUS rather than that logic being
+// hardcoded in the scheduler.
+function getEvaluasiStatusForDate(tanggal) {
   return db.prepare(`
-    SELECT k.* FROM kontak k
+    SELECT k.nama, k.nomor, k.jabatan, COALESCE(e.status, 'belum') AS status, e.jawaban
+    FROM kontak k
     LEFT JOIN evaluasi_harian e ON k.nomor = e.nomor AND e.tanggal = ?
-    WHERE e.nomor IS NULL OR e.status != 'selesai'
+    ORDER BY k.nama ASC
   `).all(tanggal);
 }
 
@@ -524,7 +529,7 @@ module.exports = {
   updateSchedulerStatus,
   getSchedulerStatus,
   updateEvaluasiStatus,
-  getUnansweredEvaluasi,
+  getEvaluasiStatusForDate,
   addRevision,
   getPendingRevisions,
   markRevisionApplied,

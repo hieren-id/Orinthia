@@ -21,10 +21,14 @@ const WHITELISTED_GROUPS = [
   { nama: 'P2MW Privat', group_id: process.env.GROUP_P2MW_PRIVAT || '', anggota: [] },
 ];
 
+// Evaluasi harian/mingguan/bulanan/kuartalan/tahunan dan pengingatnya bukan
+// lagi jadwal tetap di sini — itu sekarang baris di tabel `pengingat`
+// (lihat scheduler/reminders.js: DEFAULT_REMINDERS, di-seed sekali saat
+// pertama kali dijalankan), supaya bisa diubah lewat CREATE_REMINDER/
+// CANCEL_REMINDER tanpa deploy kode. Pipeline 22.00 tetap hardcoded di sini
+// karena langkahnya (laporan → condense → flush → restore) bukan sesuatu
+// yang aman diserahkan ke instruksi bahasa natural.
 const SCHEDULE_TIMES = {
-  daily_eval: '30 19 * * *',
-  reminder_1: '30 20 * * *',
-  reminder_2: '30 21 * * *',
   pipeline: '0 22 * * *',
 };
 
