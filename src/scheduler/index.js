@@ -7,7 +7,7 @@ const { callOrinthia } = require('../core/claude');
 const { buildSystemPrompt } = require('../orinthia/promptBuilder');
 const { buildMessagePrompt } = require('../orinthia/contextManager');
 const { parseToolCalls } = require('../moss/toolParser');
-const { executeTools, formatFollowUpData } = require('../moss/toolExecutor');
+const { executeTools, formatFollowUpData, logToolResults } = require('../moss/toolExecutor');
 const { runPipeline } = require('../moss/pipeline');
 const { getDueEvaluationLevels } = require('../moss/retention');
 const { isBotActive } = require('../moss/messageHandler');
@@ -40,7 +40,10 @@ async function triggerEvaluation(ctx) {
     if (result.text) {
       const toolCalls = parseToolCalls(result.text);
       if (toolCalls.length > 0) {
-        await executeTools(toolCalls, { ...ctx, senderName: 'Scheduler' });
+        const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Scheduler' });
+        logToolResults(execResult.results, { job: 'evaluasi_1930' });
+      } else {
+        logger.warn({ textPreview: result.text.slice(0, 500) }, 'Scheduler: evaluasi tidak menghasilkan tool call');
       }
     }
 
@@ -77,7 +80,10 @@ async function triggerReminder(ctx, round) {
     if (result.text) {
       const toolCalls = parseToolCalls(result.text);
       if (toolCalls.length > 0) {
-        await executeTools(toolCalls, { ...ctx, senderName: 'Scheduler' });
+        const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Scheduler' });
+        logToolResults(execResult.results, { job: `reminder_${round}` });
+      } else {
+        logger.warn({ round, textPreview: result.text.slice(0, 500) }, 'Scheduler: pengingat tidak menghasilkan tool call');
       }
     }
 

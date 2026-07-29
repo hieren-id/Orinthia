@@ -5,7 +5,7 @@ const { callOrinthia } = require('../core/claude');
 const { buildSystemPrompt } = require('../orinthia/promptBuilder');
 const { buildMessagePrompt } = require('../orinthia/contextManager');
 const { parseToolCalls } = require('./toolParser');
-const { executeTools, formatFollowUpData } = require('./toolExecutor');
+const { executeTools, formatFollowUpData, logToolResults } = require('./toolExecutor');
 const { getRejectionMessage, getUnavailableMessage } = require('../utils/errors');
 const logger = require('../utils/logger');
 const config = require('../config');
@@ -224,11 +224,15 @@ async function triggerOrinthia(ctx, triggerNumber, triggerName) {
       fullResponse += result.text;
       const toolCalls = parseToolCalls(result.text);
 
-      if (toolCalls.length === 0) break;
+      if (toolCalls.length === 0) {
+        logger.warn({ triggerNumber, textPreview: result.text.slice(0, 500) }, 'Orinthia response had no tool call — nothing sent to WhatsApp');
+        break;
+      }
 
       const execResult = await executeTools(toolCalls, {
         ...ctx, senderName: triggerName,
       });
+      logToolResults(execResult.results, { triggerNumber });
 
       if (execResult.needsFollowUp && followUpCount < MAX_FOLLOW_UPS) {
         const followUpMsg = formatFollowUpData(execResult.followUpData);

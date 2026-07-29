@@ -141,4 +141,17 @@ function formatFollowUpData(followUpData) {
   return sections.join('\n\n');
 }
 
-module.exports = { executeTools, formatFollowUpData, resolveJid };
+// executeTools' results were previously never inspected by any caller, so a
+// failed/skipped REPLY (bad target, duplicate hash, send error) was silently
+// indistinguishable from a successful run in the logs.
+function logToolResults(results, context = {}) {
+  for (const r of results) {
+    if (r.status === 'error') {
+      logger.warn({ ...context, ...r }, 'Tool call did not succeed');
+    } else {
+      logger.debug({ ...context, ...r }, 'Tool call result');
+    }
+  }
+}
+
+module.exports = { executeTools, formatFollowUpData, resolveJid, logToolResults };

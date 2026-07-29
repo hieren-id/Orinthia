@@ -5,7 +5,7 @@ const { callOrinthia } = require('../core/claude');
 const { buildSystemPrompt } = require('../orinthia/promptBuilder');
 const { buildMessagePrompt } = require('../orinthia/contextManager');
 const { parseToolCalls } = require('./toolParser');
-const { executeTools, formatFollowUpData } = require('./toolExecutor');
+const { executeTools, formatFollowUpData, logToolResults } = require('./toolExecutor');
 const { flushByLevel, getCurrentPeriode, getDueEvaluationLevels } = require('./retention');
 const logger = require('../utils/logger');
 
@@ -59,7 +59,10 @@ async function runPipelineForLevel(ctx, sp, level) {
   if (reportResult.text) {
     const toolCalls = parseToolCalls(reportResult.text);
     if (toolCalls.length > 0) {
-      await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      logToolResults(execResult.results, { level, stage: 'report' });
+    } else {
+      logger.warn({ level, textPreview: reportResult.text.slice(0, 500) }, `Pipeline: laporan ${level} tidak menghasilkan tool call`);
     }
   }
 
@@ -86,7 +89,10 @@ async function runPipelineForLevel(ctx, sp, level) {
   } else if (condenseResult.text) {
     const toolCalls = parseToolCalls(condenseResult.text);
     if (toolCalls.length > 0) {
-      await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      logToolResults(execResult.results, { level, stage: 'condense' });
+    } else {
+      logger.warn({ level, textPreview: condenseResult.text.slice(0, 500) }, `Pipeline: condense ${level} tidak menghasilkan tool call`);
     }
     condenseSucceeded = true;
   }
@@ -114,7 +120,8 @@ async function restoreOrinthiaSession(ctx, sp) {
   if (restoreResult.text) {
     const toolCalls = parseToolCalls(restoreResult.text);
     if (toolCalls.length > 0) {
-      await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      logToolResults(execResult.results, { stage: 'restore' });
     }
   }
 }
@@ -150,7 +157,8 @@ async function sendFrozenToOrinthia(ctx, sp, frozenMessages) {
   if (result.text) {
     const toolCalls = parseToolCalls(result.text);
     if (toolCalls.length > 0) {
-      await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
+      logToolResults(execResult.results, { stage: 'frozen' });
     }
   }
 
