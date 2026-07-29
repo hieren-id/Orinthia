@@ -1,7 +1,6 @@
 require('dotenv').config();
 
 const TIMEZONE = process.env.TZ || 'Asia/Jakarta';
-const SYSTEM_START_DATE = process.env.SYSTEM_START_DATE || new Date().toISOString().split('T')[0];
 const OWNER_NUMBER = process.env.OWNER_NUMBER || '';
 
 const WHITELISTED_NUMBERS = [
@@ -34,20 +33,11 @@ const REPORT_RECIPIENTS = {
   groups: ['Sinergi', 'P2MW Hieren', 'P2MW Privat'],
 };
 
-const CALENDAR = {
-  week: 7,
-  month: 28,
-  quarter: 84,
-  year: 336,
-};
-
 module.exports = {
   TIMEZONE,
-  SYSTEM_START_DATE,
   OWNER_NUMBER,
   WHITELISTED_NUMBERS,
   WHITELISTED_GROUPS,
   SCHEDULE_TIMES,
   REPORT_RECIPIENTS,
-  CALENDAR,
 };

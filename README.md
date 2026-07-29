@@ -59,14 +59,12 @@ Isi nilai di `.env`:
 ```env
 OWNER_NUMBER=628978535411
 TZ=Asia/Jakarta
-SYSTEM_START_DATE=2026-07-29
 ```
 
 | Variable | Keterangan |
 |---|---|
 | `OWNER_NUMBER` | Nomor WhatsApp Karel (CEO) |
 | `TZ` | Timezone untuk scheduler |
-| `SYSTEM_START_DATE` | Tanggal nol untuk perhitungan siklus evaluasi (7/28/84/336 hari) |
 
 ### 2. Kontak dan Grup
 
@@ -115,7 +113,6 @@ Sistem dalam keadaan **aktif** secara default saat pertama kali dijalankan. Stat
 - **PC dari nomor tidak berwenang** → ditolak oleh Moss, tidak disimpan
 - **Grup (tag/reply)** → diterima jika pengirim berwenang
 - **Grup (tanpa tag)** → disimpan saja, tidak ada respons
-- **Typing indicator** selama Orinthia memproses
 - **Indikator freeze** selama pipeline berjalan
 
 ### Evaluasi Terjadwal
@@ -125,15 +122,17 @@ Sistem dalam keadaan **aktif** secara default saat pertama kali dijalankan. Stat
 - **22.00** — pipeline otomatis: laporan → condense → flush → restore
 
 ### Pipeline Berjenjang
-Sistem evaluasi dan laporan berjenjang berdasarkan siklus kalender:
+Sistem evaluasi dan laporan berjenjang, dipicu berdasarkan kalender asli (bukan siklus hari tetap):
 
-| Tingkat | Periode | Sumber data |
+| Tingkat | Terpicu | Sumber data |
 |---|---|---|
-| Harian | 1 hari | Percakapan hari itu |
-| Mingguan | 7 hari | Rangkuman harian |
-| Bulanan | 28 hari | Rangkuman mingguan |
-| Kuartalan | 84 hari | Rangkuman bulanan |
-| Tahunan | 336 hari | Rangkuman kuartalan |
+| Harian | Setiap hari, pukul 22.00 | Percakapan hari itu |
+| Mingguan | Setiap hari Minggu | Rangkuman harian |
+| Bulanan | Setiap tanggal 28 | Rangkuman mingguan |
+| Kuartalan | Tanggal 28 Maret/Juni/September/Desember | Rangkuman bulanan |
+| Tahunan | Tanggal 28 Desember | Rangkuman kuartalan |
+
+Beberapa tingkat bisa terpicu di hari yang sama (mis. tanggal 28 yang jatuh di hari Minggu, atau 28 Desember yang juga akhir kuartal dan akhir tahun) — pipeline tetap memprosesnya berurutan dari tingkat terendah ke tertinggi.
 
 ### Tool Calling
 Orinthia berkomunikasi dengan dunia luar melalui format teks khusus:

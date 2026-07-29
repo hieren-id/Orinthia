@@ -1,31 +1,57 @@
-const config = require('../config');
+const QUARTER_END_MONTHS = [2, 5, 8, 11]; // Maret, Juni, September, Desember (0-indexed)
 
-function getCurrentPeriode(level) {
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
+function formatDate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function isSunday(date) {
+  return date.getDay() === 0;
+}
+
+function is28th(date) {
+  return date.getDate() === 28;
+}
+
+function isQuarterEnd(date) {
+  return is28th(date) && QUARTER_END_MONTHS.includes(date.getMonth());
+}
+
+function isYearEnd(date) {
+  return is28th(date) && date.getMonth() === 11; // Desember
+}
+
+function getCurrentPeriode(level, now = new Date()) {
+  const today = formatDate(now);
 
   switch (level) {
     case 'harian':
       return { start: today, end: today };
     case 'mingguan': {
-      const startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - (config.CALENDAR.week - 1));
-      return { start: startDate.toISOString().split('T')[0], end: today };
+      // Berjalan tiap hari Minggu — periode adalah 7 hari terakhir (Senin—Minggu).
+      const start = new Date(now);
+      start.setDate(start.getDate() - 6);
+      return { start: formatDate(start), end: today };
     }
     case 'bulanan': {
-      const startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - (config.CALENDAR.month - 1));
-      return { start: startDate.toISOString().split('T')[0], end: today };
+      // Berjalan tiap tanggal 28 — periode sejak sehari setelah tanggal 28 bulan lalu.
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 1);
+      start.setDate(start.getDate() + 1);
+      return { start: formatDate(start), end: today };
     }
     case 'kuartalan': {
-      const startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - (config.CALENDAR.quarter - 1));
-      return { start: startDate.toISOString().split('T')[0], end: today };
+      // Berjalan tiap tanggal 28 Maret/Juni/September/Desember — periode 3 bulan sebelumnya.
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 3);
+      start.setDate(start.getDate() + 1);
+      return { start: formatDate(start), end: today };
     }
     case 'tahunan': {
-      const startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - (config.CALENDAR.year - 1));
-      return { start: startDate.toISOString().split('T')[0], end: today };
+      // Berjalan tiap tanggal 28 Desember — periode 1 tahun sebelumnya.
+      const start = new Date(now);
+      start.setFullYear(start.getFullYear() - 1);
+      start.setDate(start.getDate() + 1);
+      return { start: formatDate(start), end: today };
     }
     default:
       return { start: today, end: today };
@@ -43,7 +69,14 @@ function flushByLevel(level) {
         db.prepare(`DELETE FROM rangkuman WHERE level = 'harian' AND periode_end < DATE('now')`).run();
         break;
       case 'bulanan':
-        db.prepare(`DELETE FROM rangkuman WHERE level = 'mingguan' AND periode_end < DATE('now', '-7 days')`).run();
+        // Simpan hanya rangkuman mingguan dari minggu terbaru (periode_end
+        // terbesar); hapus sisanya. Tidak lagi mengandalkan jendela hari
+        // tetap karena tanggal 28 tidak selalu jatuh di hari Minggu yang sama.
+        db.prepare(`
+          DELETE FROM rangkuman
+          WHERE level = 'mingguan'
+            AND periode_end < (SELECT MAX(periode_end) FROM rangkuman WHERE level = 'mingguan')
+        `).run();
         break;
       case 'kuartalan':
         break;
@@ -55,17 +88,12 @@ function flushByLevel(level) {
   tx();
 }
 
-function getDueEvaluationLevels() {
-  const startDate = new Date(config.SYSTEM_START_DATE);
-  const now = new Date();
-  const daysSinceStart = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-
+function getDueEvaluationLevels(now = new Date()) {
   const due = ['harian'];
-  if (daysSinceStart > 0 && daysSinceStart % config.CALENDAR.week === 0) due.push('mingguan');
-  if (daysSinceStart > 0 && daysSinceStart % config.CALENDAR.month === 0) due.push('bulanan');
-  if (daysSinceStart > 0 && daysSinceStart % config.CALENDAR.quarter === 0) due.push('kuartalan');
-  if (daysSinceStart > 0 && daysSinceStart % config.CALENDAR.year === 0) due.push('tahunan');
-
+  if (isSunday(now)) due.push('mingguan');
+  if (is28th(now)) due.push('bulanan');
+  if (isQuarterEnd(now)) due.push('kuartalan');
+  if (isYearEnd(now)) due.push('tahunan');
   return due;
 }
 

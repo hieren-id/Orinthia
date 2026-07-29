@@ -237,14 +237,16 @@ Contoh respons Orinthia dalam kasus FR-ACL-10:
 
 **FR-PIPE-5.** Seluruh proses dijalankan pukul 22.00 dengan urutan **dari tingkat terendah ke tertinggi**: harian → mingguan → bulanan → kuartalan → tahunan.
 
-**FR-PIPE-6.** Perhitungan periode:
+**FR-PIPE-6.** Pemicu tiap tingkat mengikuti kalender asli, bukan siklus hari tetap:
 
-| Periode | Perhitungan | Total hari |
+| Tingkat | Terpicu | Periode yang dilaporkan |
 |---|---|---|
-| 1 minggu | 7 hari | 7 |
-| 1 bulan | 7 × 4 | 28 |
-| 1 kuartal | 7 × 4 × 3 | 84 |
-| 1 tahun | 28 × 3 × 4 | 336 |
+| Mingguan | Setiap hari Minggu | 7 hari terakhir (Senin–Minggu) |
+| Bulanan | Setiap tanggal 28 | Sejak sehari setelah tanggal 28 bulan lalu |
+| Kuartalan | Tanggal 28 Maret, Juni, September, Desember | 3 bulan terakhir |
+| Tahunan | Tanggal 28 Desember | 1 tahun terakhir |
+
+Beberapa tingkat dapat terpicu pada hari yang sama (mis. tanggal 28 yang jatuh di hari Minggu, atau 28 Desember yang juga akhir kuartal dan akhir tahun) — FR-PIPE-5 tetap berlaku, diproses berurutan dari tingkat terendah ke tertinggi.
 
 ### 5.7 Retensi Data
 
@@ -354,6 +356,7 @@ Pesan {Nama Pengirim} sudah saya catat dan akan segera saya sampaikan ke ibu jik
 | Model AI | Catatan awal menyebut Claude Haiku; **dibatalkan** — final Claude Sonnet 5 thinking medium |
 | Nama sistem | Awalnya tanpa nama; final **Moss** |
 | Pengiriman chat grup | Awalnya hanya dikirim saat di-*tag*; **direvisi** — semua chat belum dibaca dikirim pada setiap pemicu (FR-MSG-3) |
+| Titik mulai kalender | Awalnya siklus hari tetap (7/28/84/336 hari) dari tanggal nol; **direvisi** — dipicu oleh kalender asli: mingguan tiap hari Minggu, bulanan tiap tanggal 28, kuartalan tiap 28 Maret/Juni/September/Desember, tahunan tiap 28 Desember (FR-PIPE-6) |
 
 ---
 
@@ -366,8 +369,7 @@ Bagian ini di luar spesifikasi — hal-hal yang perlu diputuskan atau diwaspadai
 1. **Deteksi tool call.** Format teks apa yang dipakai, dan bagaimana mencegah Orinthia tidak sengaja memicu tool call saat sekadar membicarakan tool call dalam percakapan biasa?
 2. **Arti "konteks nol".** Claude Code tidak selalu menyediakan cara membersihkan konteks secara programatik. Apakah implementasinya selalu membuat sesi baru?
 3. **Pemotongan proses (FR-MSG-6).** Apa yang terjadi jika proses dipotong setelah sebagian tool call sudah dieksekusi? Perlu aturan idempotensi agar pesan tidak terkirim ganda.
-4. **Titik mulai kalender.** 1 bulan = 28 hari dan 1 tahun = 336 hari, sehingga laporan akan bergeser dari kalender. Perlu ditetapkan tanggal nol, dan disadari bahwa "laporan bulanan" tidak akan sejajar dengan bulan kalender maupun tenggat seperti monev.
-5. **Identifikasi pengirim di grup.** Bagaimana Moss memetakan nomor ke nama ketika seseorang berganti nomor?
+4. **Identifikasi pengirim di grup.** Bagaimana Moss memetakan nomor ke nama ketika seseorang berganti nomor?
 
 ### 10.2 Risiko
 
