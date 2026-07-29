@@ -12,32 +12,45 @@ const KNOWN_COMMANDS = new Set([
   'FLUSH',
 ]);
 
+// Only decides where to split on the delimiter; it must NOT interpret what
+// an escape sequence means. Any backslash-pair (\|, \n, \\) is passed
+// through untouched so unescape() can resolve it afterward — consuming the
+// backslash here (as the previous version did) meant \n arrived at
+// unescape() as a bare "n", with nothing left to convert to a newline.
 function splitEscaped(str, delimiter) {
   const parts = [];
   let current = '';
-  let escaped = false;
-  for (let i = 0; i < str.length; i++) {
-    if (escaped) {
-      current += str[i];
-      escaped = false;
-    } else if (str[i] === '\\') {
-      escaped = true;
-    } else if (str[i] === delimiter) {
+  let i = 0;
+  while (i < str.length) {
+    if (str[i] === '\\' && i + 1 < str.length) {
+      current += str[i] + str[i + 1];
+      i += 2;
+      continue;
+    }
+    if (str[i] === delimiter) {
       parts.push(current);
       current = '';
-    } else {
-      current += str[i];
+      i += 1;
+      continue;
     }
+    current += str[i];
+    i += 1;
   }
   parts.push(current);
   return parts;
 }
 
 function unescape(str) {
-  return str
-    .replace(/\\\|/g, '|')
-    .replace(/\\n/g, '\n')
-    .replace(/\\\\/g, '\\');
+  // Single left-to-right pass so a substitution can't create a false match
+  // for a later step (sequential .replace() calls had this problem: \\n
+  // became \<newline> instead of the literal "\n" it should resolve to,
+  // because the \n-replace ran before the \\-replace saw it).
+  return str.replace(/\\(.)/g, (match, ch) => {
+    if (ch === '|') return '|';
+    if (ch === 'n') return '\n';
+    if (ch === '\\') return '\\';
+    return match;
+  });
 }
 
 function parseToolCalls(text) {
