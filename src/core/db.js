@@ -306,6 +306,14 @@ function updateGroupSubject(group_id, nama_asli) {
   return db.prepare(`UPDATE grup SET nama_asli = ? WHERE group_id = ?`).run(nama_asli, group_id);
 }
 
+// Repairs a group row whose group_id was mistakenly set to a display name
+// (e.g. GROUP_P2MW_HIEREN in .env holding the group's title instead of its
+// real numeric WhatsApp ID), found by matching that name against the bot's
+// actual participating groups.
+function repairGroupId(nama, group_id, nama_asli) {
+  return db.prepare(`UPDATE grup SET group_id = ?, nama_asli = ? WHERE nama = ?`).run(group_id, nama_asli, nama);
+}
+
 // ─── Scheduler ───
 
 function updateSchedulerStatus(job_name, status, error_message = null) {
@@ -422,6 +430,7 @@ module.exports = {
   getGroupById,
   registerGroup,
   updateGroupSubject,
+  repairGroupId,
   updateSchedulerStatus,
   getSchedulerStatus,
   updateEvaluasiStatus,

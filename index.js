@@ -32,7 +32,9 @@ async function main() {
     if (update.connection === 'open') {
       logger.info('WhatsApp connected');
       startScheduler(ctx);
-      backfillGroupSubjects(ctx).catch((err) => logger.error({ err }, 'Group subject backfill error'));
+      repairMisconfiguredGroupIds(ctx)
+        .then(() => backfillGroupSubjects(ctx))
+        .catch((err) => logger.error({ err }, 'Group registration repair/backfill error'));
     }
     if (update.qr) {
       logger.info('QR code received — scan with WhatsApp');
@@ -44,6 +46,49 @@ async function main() {
   process.on('SIGTERM', () => shutdown(ctx));
 
   logger.info('Orinthia is running');
+}
+
+// group_id is meant to hold the group's real numeric WhatsApp ID, but it's
+// easy to instead paste the group's display name in .env (as happened here:
+// GROUP_P2MW_HIEREN etc. held titles like "P2MW [Sistensia]"). A name in
+// that column can never resolve to a real destination. Detect anything that
+// doesn't look like a WhatsApp group ID and try to repair it by matching
+// that name against the bot's actual participating groups.
+function looksLikeGroupId(id) {
+  return /^\d+(-\d+)?$/.test(id || '');
+}
+
+async function repairMisconfiguredGroupIds(ctx) {
+  const misconfigured = db.getAllGroups().filter((g) => g.group_id && !looksLikeGroupId(g.group_id));
+  if (misconfigured.length === 0) return;
+
+  logger.warn({ count: misconfigured.length, groups: misconfigured.map(g => g.nama) },
+    'Group(s) have a non-numeric group_id (likely a name was pasted into .env instead of the real WhatsApp group ID) — attempting to auto-repair');
+
+  let participating;
+  try {
+    participating = await ctx.client.groupFetchAllParticipating();
+  } catch (err) {
+    logger.error({ err: err.message }, 'Could not fetch participating groups for repair');
+    return;
+  }
+
+  const bySubject = new Map();
+  for (const meta of Object.values(participating)) {
+    if (meta?.subject) bySubject.set(meta.subject.toLowerCase(), meta);
+  }
+
+  for (const g of misconfigured) {
+    const match = bySubject.get(g.group_id.toLowerCase());
+    if (match) {
+      const realId = wa.normalizeNumber(match.id);
+      db.repairGroupId(g.nama, realId, match.subject);
+      logger.info({ groupName: g.nama, realId, subject: match.subject }, 'Group ID auto-repaired');
+    } else {
+      logger.warn({ groupName: g.nama, badValue: g.group_id },
+        'Could not find a matching WhatsApp group to repair — is Orinthia actually a member of this group?');
+    }
+  }
 }
 
 // Registered groups whose real WhatsApp title was never captured (e.g.
