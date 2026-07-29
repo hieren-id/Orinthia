@@ -5,6 +5,23 @@ const pino = require('pino');
 const baileysLogger = pino({ level: 'silent' });
 const logger = require('../utils/logger');
 let sock = null;
+let connectionUpdateHandler = null;
+
+// Reconnecting replaces `sock` with a brand-new Baileys socket instance
+// (own .ev emitter, own everything). Any caller holding the object returned
+// by an earlier initializeWhatsApp() call — e.g. ctx.client, set once at
+// startup — would keep pointing at the dead pre-reconnect socket forever,
+// so every send after a reconnect silently fails with "Connection Closed"
+// even though a working connection exists. Return this stable proxy instead
+// of the raw socket: every property/method access resolves against whatever
+// `sock` currently is, at access time, so it never goes stale.
+const clientProxy = new Proxy({}, {
+  get(_target, prop) {
+    if (!sock) return undefined;
+    const value = sock[prop];
+    return typeof value === 'function' ? value.bind(sock) : value;
+  },
+});
 
 // WhatsApp/Baileys occasionally delivers the same message via more than one
 // messages.upsert event (e.g. a redelivery that lacks the sender_pn/
@@ -23,7 +40,13 @@ function isDuplicateMessage(msgId) {
   return false;
 }
 
-async function initializeWhatsApp(messageHandler) {
+async function initializeWhatsApp(messageHandler, onConnectionUpdate) {
+  // Remembered across reconnects: the internal setTimeout below calls
+  // initializeWhatsApp(messageHandler) again without an onConnectionUpdate
+  // argument, so the caller's handler (e.g. the one that (re)starts the
+  // scheduler and re-runs group/contact backfills) still needs to fire.
+  if (onConnectionUpdate) connectionUpdateHandler = onConnectionUpdate;
+
   const authDir = path.join(__dirname, '..', '..', 'baileys_auth');
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
@@ -39,13 +62,14 @@ async function initializeWhatsApp(messageHandler) {
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
+    const { connection, lastDisconnect } = update;
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       if (statusCode !== DisconnectReason.loggedOut) {
         setTimeout(() => initializeWhatsApp(messageHandler), 3000);
       }
     }
+    if (connectionUpdateHandler) connectionUpdateHandler(update);
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
@@ -66,11 +90,11 @@ async function initializeWhatsApp(messageHandler) {
     }
   });
 
-  return sock;
+  return clientProxy;
 }
 
 function getClient() {
-  return sock;
+  return clientProxy;
 }
 
 async function sendMessage(jid, text) {

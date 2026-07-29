@@ -24,24 +24,35 @@ async function main() {
   setSystemPromptCache(sp);
   logger.info({ promptLength: sp.length }, 'System prompt built');
 
-  ctx.client = await wa.initializeWhatsApp(async (msg) => {
-    await handleMessage(msg, ctx);
-  });
+  let schedulerStarted = false;
 
-  ctx.client.ev.on('connection.update', (update) => {
-    if (update.connection === 'open') {
-      logger.info('WhatsApp connected');
-      startScheduler(ctx);
-      repairMisconfiguredGroupIds(ctx)
-        .then(() => backfillGroupSubjects(ctx))
-        .catch((err) => logger.error({ err }, 'Group registration repair/backfill error'));
-      backfillContactJids(ctx).catch((err) => logger.error({ err }, 'Contact JID backfill error'));
+  // ctx.client is set exactly once to a stable proxy (see core/whatsapp.js)
+  // that always forwards to whatever the live socket currently is — it never
+  // needs reassigning after a reconnect. The connection-update handler is
+  // passed in (rather than attached externally via ctx.client.ev.on) because
+  // a reconnect creates a brand-new socket with its own event emitter; a
+  // listener attached once to the original socket would never see events
+  // from any socket that replaces it.
+  ctx.client = await wa.initializeWhatsApp(
+    async (msg) => { await handleMessage(msg, ctx); },
+    (update) => {
+      if (update.connection === 'open') {
+        logger.info('WhatsApp connected');
+        if (!schedulerStarted) {
+          schedulerStarted = true;
+          startScheduler(ctx);
+        }
+        repairMisconfiguredGroupIds(ctx)
+          .then(() => backfillGroupSubjects(ctx))
+          .catch((err) => logger.error({ err }, 'Group registration repair/backfill error'));
+        backfillContactJids(ctx).catch((err) => logger.error({ err }, 'Contact JID backfill error'));
+      }
+      if (update.qr) {
+        logger.info('QR code received — scan with WhatsApp');
+        qrcode.generate(update.qr, { small: true });
+      }
     }
-    if (update.qr) {
-      logger.info('QR code received — scan with WhatsApp');
-      qrcode.generate(update.qr, { small: true });
-    }
-  });
+  );
 
   process.on('SIGINT', () => shutdown(ctx));
   process.on('SIGTERM', () => shutdown(ctx));
