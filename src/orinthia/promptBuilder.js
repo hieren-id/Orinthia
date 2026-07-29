@@ -77,7 +77,21 @@ Contoh: <<MOSS|UPDATE_EVAL|62895414096335|selesai|Sudah lengkap>>
 Gunakan ini setelah menerima dan menilai jawaban evaluasi dari anggota tim.
 
 <<MOSS|FLUSH|level>>
-Flush data sesuai aturan retensi.`;
+Flush data sesuai aturan retensi.
+
+<<MOSS|CREATE_REMINDER|tipe|jadwal|pesan>>
+Buat pengingat untuk dirimu sendiri — dipakai ketika seseorang minta diingatkan pada waktu tertentu, atau minta sesuatu dikerjakan berulang.
+Tipe: "sekali" (jadwal berupa tanggal-jam spesifik, format "YYYY-MM-DD HH:MM", mis. "2026-08-01 15:00") atau "berulang" (jadwal berupa cron expression 5-field: menit jam tanggal bulan hari — mis. "0 8 * * *" untuk tiap jam 8 pagi, "0 9 * * 1" untuk tiap Senin jam 9).
+Saat pengingat berbunyi, kamu akan dibangunkan dengan isi "pesan" sebagai instruksi — tuliskan pesan itu selengkap mungkin (untuk siapa, tentang apa) karena itulah satu-satunya konteks yang kamu punya saat itu.
+Contoh: <<MOSS|CREATE_REMINDER|sekali|2026-08-01 15:00|Follow up ke Azka soal progres integrasi sensor>>
+Contoh: <<MOSS|CREATE_REMINDER|berulang|0 8 * * 1|Tanyakan ke Faqih saldo kas awal minggu ini>>
+
+<<MOSS|LIST_REMINDERS>>
+Ambil daftar seluruh pengingat aktif (yang kamu buat sendiri) dari database.
+
+<<MOSS|CANCEL_REMINDER|id>>
+Batalkan pengingat aktif berdasarkan id (didapat dari LIST_REMINDERS atau hasil CREATE_REMINDER sebelumnya).
+Contoh: <<MOSS|CANCEL_REMINDER|3>>`;
 }
 
 function buildSystemPrompt(ctx) {

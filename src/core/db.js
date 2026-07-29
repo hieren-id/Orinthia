@@ -138,6 +138,17 @@ function createTables() {
       nilai TEXT NOT NULL,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS pengingat (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tipe TEXT NOT NULL CHECK(tipe IN ('sekali','berulang')),
+      jadwal TEXT NOT NULL,
+      pesan TEXT NOT NULL,
+      status TEXT DEFAULT 'aktif' CHECK(status IN ('aktif','selesai','dibatalkan')),
+      dibuat_oleh TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_run DATETIME
+    );
   `);
 }
 
@@ -374,6 +385,41 @@ function markRevisionRejected(id, catatan = null) {
   `).run(catatan, id);
 }
 
+// ─── Pengingat ───
+
+function createReminder(tipe, jadwal, pesan, dibuat_oleh) {
+  return db.prepare(`
+    INSERT INTO pengingat (tipe, jadwal, pesan, dibuat_oleh)
+    VALUES (?, ?, ?, ?)
+  `).run(tipe, jadwal, pesan, dibuat_oleh);
+}
+
+function getActiveReminders() {
+  return db.prepare(`SELECT * FROM pengingat WHERE status = 'aktif' ORDER BY created_at ASC`).all();
+}
+
+function getReminderById(id) {
+  return db.prepare(`SELECT * FROM pengingat WHERE id = ?`).get(id);
+}
+
+function getDueOneTimeReminders(nowStr) {
+  return db.prepare(`
+    SELECT * FROM pengingat WHERE tipe = 'sekali' AND status = 'aktif' AND jadwal <= ?
+  `).all(nowStr);
+}
+
+function markReminderDone(id) {
+  return db.prepare(`UPDATE pengingat SET status = 'selesai', last_run = CURRENT_TIMESTAMP WHERE id = ?`).run(id);
+}
+
+function markReminderRun(id) {
+  return db.prepare(`UPDATE pengingat SET last_run = CURRENT_TIMESTAMP WHERE id = ?`).run(id);
+}
+
+function cancelReminder(id) {
+  return db.prepare(`UPDATE pengingat SET status = 'dibatalkan' WHERE id = ?`).run(id);
+}
+
 // ─── Idempotensi ───
 
 function wasMessageSent(hash) {
@@ -439,6 +485,13 @@ module.exports = {
   getPendingRevisions,
   markRevisionApplied,
   markRevisionRejected,
+  createReminder,
+  getActiveReminders,
+  getReminderById,
+  getDueOneTimeReminders,
+  markReminderDone,
+  markReminderRun,
+  cancelReminder,
   wasMessageSent,
   recordSentMessage,
   getSystemState,

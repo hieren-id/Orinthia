@@ -3,6 +3,7 @@ const wa = require('./src/core/whatsapp');
 const { buildSystemPrompt } = require('./src/orinthia/promptBuilder');
 const { handleMessage, setSystemPromptCache, initBotState } = require('./src/moss/messageHandler');
 const { startScheduler } = require('./src/scheduler');
+const { initReminders } = require('./src/scheduler/reminders');
 const logger = require('./src/utils/logger');
 const qrcode = require('qrcode-terminal');
 
@@ -23,6 +24,11 @@ async function main() {
   const sp = buildSystemPrompt(ctx);
   setSystemPromptCache(sp);
   logger.info({ promptLength: sp.length }, 'System prompt built');
+
+  // Independent of WhatsApp connection state — a recurring reminder should
+  // keep ticking regardless; if it fires while disconnected, the REPLY just
+  // fails and logs like any other send attempt would.
+  initReminders(ctx);
 
   let schedulerStarted = false;
 

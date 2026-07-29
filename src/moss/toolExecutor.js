@@ -126,6 +126,37 @@ async function executeTools(toolCalls, ctx) {
           results.push({ command: 'FLUSH', status: 'flushed' });
           break;
         }
+        case 'CREATE_REMINDER': {
+          const [tipe, jadwal, pesan] = tc.params;
+          if (!tipe || !jadwal || !pesan) { results.push({ command: 'CREATE_REMINDER', status: 'error', error: 'missing params' }); break; }
+          const { createReminder } = require('../scheduler/reminders');
+          const outcome = createReminder(ctx, tipe.trim(), jadwal.trim(), pesan, ctx.senderName || 'Orinthia');
+          if (outcome.error) {
+            results.push({ command: 'CREATE_REMINDER', status: 'error', error: outcome.error });
+          } else {
+            results.push({ command: 'CREATE_REMINDER', status: 'created', id: outcome.id });
+          }
+          break;
+        }
+        case 'LIST_REMINDERS': {
+          const data = db.getActiveReminders();
+          followUpData.push({ type: 'reminders', data });
+          needsFollowUp = true;
+          break;
+        }
+        case 'CANCEL_REMINDER': {
+          const [idStr] = tc.params;
+          const id = parseInt(idStr, 10);
+          if (!idStr || isNaN(id)) { results.push({ command: 'CANCEL_REMINDER', status: 'error', error: 'invalid id' }); break; }
+          const { cancelReminder } = require('../scheduler/reminders');
+          const outcome = cancelReminder(id);
+          if (outcome.error) {
+            results.push({ command: 'CANCEL_REMINDER', status: 'error', error: outcome.error });
+          } else {
+            results.push({ command: 'CANCEL_REMINDER', status: 'cancelled', id });
+          }
+          break;
+        }
         default:
           results.push({ command: tc.command, status: 'unknown' });
       }

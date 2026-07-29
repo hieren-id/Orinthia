@@ -10,6 +10,9 @@ const KNOWN_COMMANDS = new Set([
   'REQUEST_REVISION',
   'UPDATE_EVAL',
   'FLUSH',
+  'CREATE_REMINDER',
+  'LIST_REMINDERS',
+  'CANCEL_REMINDER',
 ]);
 
 // Only decides where to split on the delimiter; it must NOT interpret what
