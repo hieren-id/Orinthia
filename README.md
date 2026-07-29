@@ -106,7 +106,7 @@ Karel (CEO) dapat mengontrol sistem langsung dari WhatsApp:
 | `/on` | Mengaktifkan Orinthia — pesan diproses dan diteruskan ke Claude |
 | `/off` | Menonaktifkan Orinthia — pesan tetap disimpan tetapi tidak diproses |
 
-Sistem dalam keadaan **nonaktif** secara default saat pertama kali dijalankan. Kirim `/on` untuk mengaktifkan.
+Sistem dalam keadaan **aktif** secara default saat pertama kali dijalankan. Status aktif/nonaktif tersimpan di database dan bertahan meski proses di-restart — kirim `/off` untuk menjeda seluruh pemrosesan (termasuk evaluasi terjadwal, pengingat, dan pipeline 22.00), `/on` untuk mengaktifkan kembali. Pesan yang masuk selama nonaktif tetap disimpan, tidak diproses.
 
 ## Fitur
 

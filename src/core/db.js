@@ -117,6 +117,12 @@ function createTables() {
       target TEXT,
       waktu DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS system_state (
+      kunci TEXT PRIMARY KEY,
+      nilai TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
@@ -135,11 +141,11 @@ function seedData() {
 
 // ─── Pesan ───
 
-function insertMessage({ isi, waktu, nomor_pengirim, nama_pengirim, sumber, sumber_id, sumber_nama }) {
+function insertMessage({ isi, waktu, nomor_pengirim, nama_pengirim, sumber, sumber_id, sumber_nama, dibekukan = 0 }) {
   return db.prepare(`
-    INSERT INTO pesan (isi, waktu, nomor_pengirim, nama_pengirim, sumber, sumber_id, sumber_nama)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(isi, waktu, nomor_pengirim, nama_pengirim, sumber, sumber_id, sumber_nama);
+    INSERT INTO pesan (isi, waktu, nomor_pengirim, nama_pengirim, sumber, sumber_id, sumber_nama, dibekukan)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(isi, waktu, nomor_pengirim, nama_pengirim, sumber, sumber_id, sumber_nama, dibekukan);
 }
 
 function getUnreadMessages() {
@@ -342,6 +348,18 @@ function recordSentMessage(hash, target) {
   db.prepare(`INSERT OR IGNORE INTO pesan_keluar (hash, target) VALUES (?, ?)`).run(hash, target);
 }
 
+function getSystemState(kunci, defaultVal = null) {
+  const row = db.prepare(`SELECT nilai FROM system_state WHERE kunci = ?`).get(kunci);
+  return row ? row.nilai : defaultVal;
+}
+
+function setSystemState(kunci, nilai) {
+  return db.prepare(`
+    INSERT INTO system_state (kunci, nilai, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(kunci) DO UPDATE SET nilai = excluded.nilai, updated_at = CURRENT_TIMESTAMP
+  `).run(kunci, nilai);
+}
+
 function closeDatabase() {
   if (db) db.close();
 }
@@ -384,5 +402,7 @@ module.exports = {
   markRevisionRejected,
   wasMessageSent,
   recordSentMessage,
+  getSystemState,
+  setSystemState,
   closeDatabase,
 };

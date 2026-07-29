@@ -13,11 +13,14 @@ const WHITELISTED_NUMBERS = [
   { nama: 'Faqih', nomor: process.env.NO_FAQIH || '', jabatan: 'CFO', tupoksi: 'Keuangan, pembukuan, pelaporan penggunaan dana P2MW.' },
 ].filter(c => c.nomor);
 
+// Tidak difilter berdasarkan group_id: entri tanpa group_id tetap perlu ada di sini
+// agar auto-registrasi grup (messageHandler.js) bisa mencocokkan nama grup WhatsApp
+// terhadap daftar putih sebelum group_id-nya diketahui.
 const WHITELISTED_GROUPS = [
   { nama: 'Sinergi', group_id: process.env.GROUP_SINERGI || '', anggota: [] },
   { nama: 'P2MW Hieren', group_id: process.env.GROUP_P2MW_HIEREN || '', anggota: [] },
   { nama: 'P2MW Privat', group_id: process.env.GROUP_P2MW_PRIVAT || '', anggota: [] },
-].filter(g => g.group_id);
+];
 
 const SCHEDULE_TIMES = {
   daily_eval: '30 19 * * *',

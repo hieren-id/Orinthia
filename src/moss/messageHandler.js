@@ -12,7 +12,13 @@ const config = require('../config');
 
 let processingLock = false;
 let systemPromptCache = '';
-let botActive = false;
+let botActive = true;
+
+function initBotState() {
+  const saved = db.getSystemState('bot_active', 'true');
+  botActive = saved === 'true';
+  logger.info({ botActive }, 'Bot state loaded from DB');
+}
 
 function setSystemPromptCache(sp) { systemPromptCache = sp; }
 function isBotActive() { return botActive; }
@@ -34,27 +40,43 @@ async function handleMessage(msg, ctx) {
 
   if (!isGroup && isOwner && messageText === '/on') {
     botActive = true;
-    await wa.sendMessage(chatJid, '*Moss*\nSistem Orinthia diaktifkan. ✅');
+    db.setSystemState('bot_active', 'true');
+    await wa.sendMessage(chatJid, '*Moss*\nSistem Orinthia diaktifkan.');
     logger.info({ senderNumber }, 'Bot activated by owner');
     return;
   }
 
   if (!isGroup && isOwner && messageText === '/off') {
     botActive = false;
-    await wa.sendMessage(chatJid, '*Moss*\nSistem Orinthia dinonaktifkan. Pesan akan tetap disimpan tetapi tidak diproses.');
+    db.setSystemState('bot_active', 'false');
+    await wa.sendMessage(chatJid, '*Moss*\nSistem Orinthia dinonaktifkan. Pesan tetap disimpan tetapi tidak diproses.');
     logger.info({ senderNumber }, 'Bot deactivated by owner');
     return;
   }
 
   if (!botActive) {
+    const isSenderWhitelisted = acl.isWhitelistedNumber(senderNumber);
+
     if (!isGroup) {
+      if (!isSenderWhitelisted) return;
       db.insertMessage({
         isi: messageText, waktu: messageTime.toISOString(),
         nomor_pengirim: senderNumber, nama_pengirim: senderName,
         sumber: 'pc', sumber_id: senderNumber, sumber_nama: senderName,
       });
-      logger.debug({ senderNumber }, 'Message stored (bot inactive)');
+      logger.debug({ senderNumber }, 'PC stored (bot inactive)');
+      return;
     }
+
+    const groupInfo = acl.getGroup(chatJid);
+    if (!acl.isWhitelistedGroup(chatJid) && !groupInfo) return;
+    const groupName = groupInfo?.nama || wa.normalizeNumber(chatJid);
+    db.insertMessage({
+      isi: messageText, waktu: messageTime.toISOString(),
+      nomor_pengirim: senderNumber, nama_pengirim: senderName,
+      sumber: 'grup', sumber_id: wa.normalizeNumber(chatJid), sumber_nama: groupName,
+    });
+    logger.debug({ senderNumber, groupName }, 'Group stored (bot inactive)');
     return;
   }
 
@@ -73,6 +95,7 @@ async function handleMessage(msg, ctx) {
       isi: messageText, waktu: messageTime.toISOString(),
       nomor_pengirim: senderNumber, nama_pengirim: senderName,
       sumber: 'pc', sumber_id: senderNumber, sumber_nama: senderName,
+      dibekukan: isFrozen ? 1 : 0,
     });
 
     if (isFrozen) {
@@ -90,8 +113,24 @@ async function handleMessage(msg, ctx) {
   const isReplyToBot = wa.isReplyToBot(msg, botJid);
   const isTagged = isMentioned || isReplyToBot;
 
-  const groupInfo = acl.getGroup(chatJid);
-  const groupName = groupInfo?.nama || wa.normalizeNumber(chatJid);
+  let groupInfo = acl.getGroup(chatJid);
+  let groupName = groupInfo?.nama || '';
+
+  if (!groupInfo && isGroup && ctx.client) {
+    try {
+      const meta = await ctx.client.groupMetadata(chatJid);
+      const metaName = meta?.subject || '';
+      const configGroup = config.WHITELISTED_GROUPS.find(g => g.nama.toLowerCase() === metaName.toLowerCase());
+      if (configGroup) {
+        db.registerGroup(configGroup.nama, wa.normalizeNumber(chatJid));
+        groupInfo = acl.getGroup(chatJid);
+        groupName = configGroup.nama;
+        logger.info({ groupName, chatJid }, 'Group auto-registered');
+      }
+    } catch {}
+  }
+
+  if (!groupName) groupName = wa.normalizeNumber(chatJid);
 
   if (!acl.isWhitelistedGroup(chatJid) && !groupInfo) {
     return;
@@ -102,6 +141,7 @@ async function handleMessage(msg, ctx) {
       isi: messageText, waktu: messageTime.toISOString(),
       nomor_pengirim: senderNumber, nama_pengirim: senderName,
       sumber: 'grup', sumber_id: wa.normalizeNumber(chatJid), sumber_nama: groupName,
+      dibekukan: isFrozen ? 1 : 0,
     });
     try {
       await wa.sendMessage(chatJid, getRejectionMessage(senderName));
@@ -114,6 +154,7 @@ async function handleMessage(msg, ctx) {
     isi: messageText, waktu: messageTime.toISOString(),
     nomor_pengirim: senderNumber, nama_pengirim: senderName,
     sumber: 'grup', sumber_id: wa.normalizeNumber(chatJid), sumber_nama: groupName,
+    dibekukan: isFrozen ? 1 : 0,
   });
 
   if (!isTagged) {
@@ -216,4 +257,4 @@ async function triggerOrinthia(ctx, triggerNumber, triggerName) {
   }
 }
 
-module.exports = { handleMessage, setSystemPromptCache, isBotActive };
+module.exports = { handleMessage, setSystemPromptCache, isBotActive, initBotState };

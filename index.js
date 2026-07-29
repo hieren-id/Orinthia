@@ -1,7 +1,7 @@
 const db = require('./src/core/db');
 const wa = require('./src/core/whatsapp');
 const { buildSystemPrompt } = require('./src/orinthia/promptBuilder');
-const { handleMessage, setSystemPromptCache } = require('./src/moss/messageHandler');
+const { handleMessage, setSystemPromptCache, initBotState } = require('./src/moss/messageHandler');
 const { startScheduler } = require('./src/scheduler');
 const logger = require('./src/utils/logger');
 const qrcode = require('qrcode-terminal');
@@ -11,6 +11,8 @@ async function main() {
 
   db.initDatabase();
   logger.info('Database initialized');
+
+  initBotState();
 
   const ctx = {
     client: null,
