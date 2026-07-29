@@ -35,6 +35,7 @@ async function main() {
       repairMisconfiguredGroupIds(ctx)
         .then(() => backfillGroupSubjects(ctx))
         .catch((err) => logger.error({ err }, 'Group registration repair/backfill error'));
+      backfillContactJids(ctx).catch((err) => logger.error({ err }, 'Contact JID backfill error'));
     }
     if (update.qr) {
       logger.info('QR code received — scan with WhatsApp');
@@ -107,6 +108,37 @@ async function backfillGroupSubjects(ctx) {
       }
     } catch (err) {
       logger.debug({ err: err.message, groupName: g.nama }, 'Could not fetch group metadata for backfill');
+    }
+  }
+}
+
+// A contact's last_jid is normally only learned reactively, from an inbound
+// message — so a contact who has never successfully messaged Orinthia since
+// last_jid tracking was added stays stuck on the reconstructed
+// <number>@s.whatsapp.net JID, which is wrong for any account using
+// WhatsApp's phone-number privacy (confirmed: Karel, Mas Rafi, and Tata all
+// actually message under an @lid). That's a deadlock — they can't read a
+// reply sent to the wrong session, so they have no working way to reply and
+// let Orinthia learn the right one. Resolve it proactively via onWhatsApp's
+// LID lookup, which doesn't require any message from them first.
+async function backfillContactJids(ctx) {
+  const contacts = db.getAllContacts().filter((c) => c.nomor && !c.last_jid);
+  for (const c of contacts) {
+    try {
+      const results = await ctx.client.onWhatsApp(c.nomor);
+      const result = results?.[0];
+      if (!result) {
+        logger.warn({ contact: c.nama, nomor: c.nomor }, 'onWhatsApp lookup returned nothing — number may not be reachable on WhatsApp');
+        continue;
+      }
+      const lidJid = result.lid ? (String(result.lid).includes('@') ? result.lid : `${result.lid}@lid`) : null;
+      const jid = lidJid || result.jid;
+      if (jid) {
+        db.updateContactJid(c.nomor, jid);
+        logger.info({ contact: c.nama, jid }, 'Contact JID backfilled via onWhatsApp lookup');
+      }
+    } catch (err) {
+      logger.debug({ err: err.message, contact: c.nama }, 'Could not backfill contact JID via onWhatsApp');
     }
   }
 }
