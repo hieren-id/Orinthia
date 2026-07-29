@@ -197,12 +197,6 @@ async function triggerOrinthia(ctx, triggerNumber, triggerName) {
     const sp = systemPromptCache || buildSystemPrompt(ctx);
 
     const contact = acl.getContact(triggerNumber);
-    if (contact) {
-      try {
-        const jid = `${acl.normalizeNumber(contact.nomor)}@s.whatsapp.net`;
-        await ctx.client.sendPresenceUpdate('composing', jid);
-      } catch {}
-    }
 
     let fullResponse = '';
     let followUpCount = 0;
@@ -248,13 +242,6 @@ async function triggerOrinthia(ctx, triggerNumber, triggerName) {
 
     const readIds = unread.map(m => m.id);
     db.markAsRead(readIds);
-
-    if (contact) {
-      try {
-        const jid = `${acl.normalizeNumber(contact.nomor)}@s.whatsapp.net`;
-        await ctx.client.sendPresenceUpdate('paused', jid);
-      } catch {}
-    }
 
     logger.info({ triggerNumber, responseLength: fullResponse.length }, 'Orinthia response processed');
   } catch (err) {

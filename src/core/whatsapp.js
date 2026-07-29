@@ -57,16 +57,6 @@ async function sendMessage(jid, text) {
   return sock.sendMessage(jid, { text });
 }
 
-async function sendTyping(jid) {
-  if (!sock) return;
-  await sock.sendPresenceUpdate('composing', jid);
-}
-
-async function stopTyping(jid) {
-  if (!sock) return;
-  await sock.sendPresenceUpdate('paused', jid);
-}
-
 function isGroupJid(jid) {
   return jid.endsWith('@g.us');
 }
@@ -115,8 +105,6 @@ module.exports = {
   initializeWhatsApp,
   getClient,
   sendMessage,
-  sendTyping,
-  stopTyping,
   isGroupJid,
   normalizeNumber,
   extractMessageText,

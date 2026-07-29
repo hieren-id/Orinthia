@@ -37,9 +37,7 @@ async function executeTools(toolCalls, ctx) {
           const hash = hashMessage(jid, message);
           if (db.wasMessageSent(hash)) { results.push({ command: 'REPLY', status: 'skipped', reason: 'duplicate' }); break; }
           try {
-            await client.sendPresenceUpdate('composing', jid);
             await client.sendMessage(jid, { text: message });
-            await client.sendPresenceUpdate('paused', jid);
             db.recordSentMessage(hash, jid);
             results.push({ command: 'REPLY', status: 'sent', target: jid });
           } catch (err) {
