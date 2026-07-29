@@ -13,7 +13,10 @@ function resolveJid(target, client) {
   if (!target) return null;
   if (target.includes('@')) return target;
   const contact = acl.getContact(target);
-  if (contact) return `${acl.normalizeNumber(contact.nomor)}@s.whatsapp.net`;
+  // Prefer the JID this contact's messages actually arrive on (can be @lid
+  // under WhatsApp's phone-number privacy) over reconstructing @s.whatsapp.net,
+  // which can address a different session than the one they're viewing.
+  if (contact) return contact.last_jid || `${acl.normalizeNumber(contact.nomor)}@s.whatsapp.net`;
   const group = acl.getGroupByName(target);
   if (group && group.group_id) return `${group.group_id}@g.us`;
   if (/^\d+$/.test(target)) return `${target}@s.whatsapp.net`;

@@ -66,6 +66,7 @@ async function handleMessage(msg, ctx) {
 
     if (!isGroup) {
       if (!isSenderWhitelisted) return;
+      db.updateContactJid(senderNumber, chatJid);
       db.insertMessage({
         isi: messageText, waktu: messageTime.toISOString(),
         nomor_pengirim: senderNumber, nama_pengirim: senderName,
@@ -98,6 +99,7 @@ async function handleMessage(msg, ctx) {
       return;
     }
 
+    db.updateContactJid(senderNumber, chatJid);
     db.insertMessage({
       isi: messageText, waktu: messageTime.toISOString(),
       nomor_pengirim: senderNumber, nama_pengirim: senderName,
@@ -209,7 +211,7 @@ async function triggerOrinthia(ctx, triggerNumber, triggerName) {
       if (result.error && !result.text) {
         logger.error({ error: result.error }, 'Claude error');
         if (contact) {
-          const jid = `${acl.normalizeNumber(contact.nomor)}@s.whatsapp.net`;
+          const jid = contact.last_jid || `${acl.normalizeNumber(contact.nomor)}@s.whatsapp.net`;
           try { await wa.sendMessage(jid, getUnavailableMessage(contact.nama)); } catch {}
         }
         const errText = `[MOSS ERROR] ${result.error}`;

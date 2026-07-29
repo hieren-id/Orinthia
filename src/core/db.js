@@ -12,8 +12,18 @@ function initDatabase() {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   createTables();
+  migrateSchema();
   seedData();
   return db;
+}
+
+// Handles upgrading a database created before a column existed.
+// CREATE TABLE IF NOT EXISTS above is a no-op on an existing table.
+function migrateSchema() {
+  const kontakColumns = db.prepare(`PRAGMA table_info(kontak)`).all().map(c => c.name);
+  if (!kontakColumns.includes('last_jid')) {
+    db.exec(`ALTER TABLE kontak ADD COLUMN last_jid TEXT`);
+  }
 }
 
 function getDb() {
@@ -258,6 +268,13 @@ function getContactByNumber(nomor) {
   return db.prepare(`SELECT * FROM kontak WHERE nomor = ?`).get(nomor);
 }
 
+// Records the exact JID WhatsApp used to deliver this contact's last message
+// (which can be @lid instead of @s.whatsapp.net under phone-number privacy)
+// so replies address the same session rather than a reconstructed JID.
+function updateContactJid(nomor, jid) {
+  return db.prepare(`UPDATE kontak SET last_jid = ? WHERE nomor = ?`).run(jid, nomor);
+}
+
 function getAllGroups() {
   return db.prepare(`SELECT * FROM grup ORDER BY nama ASC`).all();
 }
@@ -388,6 +405,7 @@ module.exports = {
   deleteMemory,
   getAllContacts,
   getContactByNumber,
+  updateContactJid,
   getAllGroups,
   getGroupByName,
   getGroupById,
