@@ -262,7 +262,7 @@ Beberapa tingkat dapat terpicu pada hari yang sama (mis. tanggal 28 yang jatuh d
 
 **FR-DB-2.** Konsekuensinya: **rangkuman bulanan dan tahunan bersifat permanen** di database.
 
-**FR-DB-3.** Aturan flush hanya berlaku untuk **rangkuman** (per-PC, per-grup, dan keseluruhan). **Seluruh laporan bersifat permanen** tanpa terkecuali.
+**FR-DB-3.** Aturan flush hanya berlaku untuk **rangkuman** (per-PC, per-grup, dan keseluruhan) dan tier laporan `standar`/`umum`. Tier laporan **`detail` bersifat permanen** sebagai acuan utama — tier `standar` dan `umum` hanya untuk pengiriman sekali pakai, dihapus segera setelah terkirim (lihat 5.8, FR-PIPE-1 langkah 3).
 
 **FR-DB-4.** Setiap kali konteks dibersihkan atau sesi baru dibuat, Moss hanya mengirim ke Orinthia: laporan dan rangkuman **1 hari terakhir, 1 minggu terakhir, 1 bulan terakhir, 1 kuartal terakhir, dan 1 tahun terakhir**.
 
@@ -272,7 +272,7 @@ Beberapa tingkat dapat terpicu pada hari yang sama (mis. tanggal 28 yang jatuh d
 
 ### 5.8 Karakteristik Laporan dan Rangkuman
 
-**FR-DOC-1.** **Laporan** bersifat profesional dan baku, disusun berdasarkan riwayat pada periode tersebut, dengan penekanan pada jawaban atas pertanyaan evaluasi. Ditujukan untuk dibaca manusia.
+**FR-DOC-1.** **Laporan** bersifat profesional dan baku, disusun berdasarkan riwayat pada periode tersebut, dengan penekanan pada jawaban atas pertanyaan evaluasi. Ditujukan untuk dibaca manusia. Dibuat dalam 3 tier berbeda tingkat detail/nada (`detail`, `standar`, `umum`) untuk penerima yang berbeda — lihat FR-PIPE-1 langkah 3 dan FR-DB-3.
 
 **FR-DOC-2.** **Rangkuman** berisi ringkasan mentah untuk keperluan konteks Orinthia. Tidak ditujukan untuk pengguna, sehingga formatnya dioptimalkan untuk konsumsi model.
 
@@ -342,7 +342,7 @@ Pesan {Nama Pengirim} sudah saya catat dan akan segera saya sampaikan ke ibu jik
 | `rangkuman_bulanan` | Per-PC, per-grup, keseluruhan | **Permanen** |
 | `rangkuman_kuartalan` | Per-PC, per-grup, keseluruhan | Dihapus tiap tahun |
 | `rangkuman_tahunan` | Per-PC, per-grup, keseluruhan | **Permanen** |
-| `laporan` | Laporan seluruh tingkat | **Permanen** |
+| `laporan` | Laporan seluruh tingkat, 3 tier (detail/standar/umum) | Tier `detail`: **permanen**. Tier `standar`/`umum`: dihapus setelah terkirim |
 | `memori_orinthia` | Data penting, CRUD hanya oleh Orinthia | **Permanen** |
 | `kontak` | Nama, nomor, jabatan, tupoksi | Permanen |
 | `grup` | Nama, ID, daftar anggota | Permanen |
@@ -358,6 +358,7 @@ Pesan {Nama Pengirim} sudah saya catat dan akan segera saya sampaikan ke ibu jik
 | Pengiriman chat grup | Awalnya hanya dikirim saat di-*tag*; **direvisi** — semua chat belum dibaca dikirim pada setiap pemicu (FR-MSG-3) |
 | Titik mulai kalender | Awalnya siklus hari tetap (7/28/84/336 hari) dari tanggal nol; **direvisi** — dipicu oleh kalender asli: mingguan tiap hari Minggu, bulanan tiap tanggal 28, kuartalan tiap 28 Maret/Juni/September/Desember, tahunan tiap 28 Desember (FR-PIPE-6) |
 | Isi laporan ke tiap penerima | Awalnya satu laporan seragam untuk Mas Rafi + semua grup; **direvisi** — 3 tier (`detail`/`standar`/`umum`) dengan isi sama secara garis besar tapi beda tingkat rincian, dikirim ke penerima berbeda per tier (FR-PIPE-1 langkah 3) |
+| Retensi laporan | Awalnya seluruh laporan permanen tanpa terkecuali (FR-DB-3); **direvisi** — hanya tier `detail` permanen sebagai acuan utama, tier `standar`/`umum` dihapus setelah terkirim supaya tidak menumpuk data yang isinya sudah terwakili oleh tier `detail` |
 
 ---
 

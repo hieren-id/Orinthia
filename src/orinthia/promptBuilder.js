@@ -53,6 +53,7 @@ Isi laporannya sama secara garis besar (data dan kejadian yang sama), tapi tier 
 - "standar" — rinci, tapi nada formal dan profesional. Untuk Mas Rafi dan grup P2MW Hieren (pihak luar/stakeholder). Detail tetap lengkap, tapi bahasanya lebih terjaga.
 - "umum" — TIDAK rinci, garis besar saja. Untuk grup Sinergi. Jangan cantumkan detail spesifik per orang — cukup gambaran umum progres tim.
 Pengiriman ke masing-masing grup/kontak sudah otomatis berdasarkan tier — kamu tidak perlu REPLY manual untuk laporan.
+Hanya tier "detail" yang disimpan permanen sebagai acuan utama — "standar" dan "umum" otomatis dihapus setelah terkirim (bukan untuk disimpan lama, hanya untuk sekali kirim).
 Contoh: <<MOSS|STORE_REPORT|harian|detail|...>> lalu <<MOSS|STORE_REPORT|harian|standar|...>> lalu <<MOSS|STORE_REPORT|harian|umum|...>>
 
 <<MOSS|STORE_SUMMARY|level|scope|nama_scope|content>>
@@ -63,7 +64,7 @@ Contoh: <<MOSS|STORE_SUMMARY|harian|pc:6281234567890|Azka|Rangkuman percakapan..
 Ambil rangkuman dari database. Kosongkan scope untuk semua.
 
 <<MOSS|GET_REPORT|level|periode|tier>>
-Ambil laporan. Format periode: YYYY-MM-DD. Tier opsional (default "standar") — kosongkan periode untuk ambil 5 laporan terbaru dari semua tier.
+Ambil laporan. Format periode: YYYY-MM-DD. Tier opsional (default "detail", satu-satunya yang dijamin masih ada untuk laporan lama — "standar"/"umum" sudah dihapus setelah terkirim). Kosongkan periode untuk ambil 5 laporan terbaru.
 
 <<MOSS|GET_MEMORY|key>>
 Ambil dari memori permanen. Gunakan * untuk semua.

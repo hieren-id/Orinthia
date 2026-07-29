@@ -98,6 +98,13 @@ async function runPipelineForLevel(ctx, sp, level) {
     logToolResults(deliveryResult.results, { level, stage: 'report-delivery' });
   }
 
+  // standar/umum only exist to be sent once — keep just detail as the
+  // permanent record (FR-DB-3) so laporan doesn't accumulate 3x the rows
+  // it needs to. Runs regardless of per-recipient delivery outcome: a
+  // failed send (e.g. an unregistered group) isn't something retried later
+  // in this architecture, so holding onto the row wouldn't help anyway.
+  db.deleteNonDetailReports(level, periode.end);
+
   logger.info({ level }, `Pipeline: laporan ${level} selesai`);
 
   const condensePrompt = `[MOSS PIPELINE — Condense ${level}]\n\n` +

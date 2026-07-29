@@ -193,7 +193,7 @@ Ketika Karel meminta perubahan yang menyangkut data hardcode (system prompt, kon
 | Kuartalan | Tidak menghapus apa pun |
 | Tahunan | Seluruh rangkuman kuartalan |
 
-Laporan dan memori Orinthia bersifat **permanen**.
+Memori Orinthia bersifat **permanen**. Laporan: hanya tier **`detail`** yang permanen (acuan utama) — tier `standar` dan `umum` dihapus segera setelah terkirim, karena isinya sudah terwakili oleh tier `detail`.
 
 ## Struktur File
 

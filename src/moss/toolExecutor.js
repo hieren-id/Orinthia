@@ -79,7 +79,7 @@ async function executeTools(toolCalls, ctx) {
         }
         case 'GET_REPORT': {
           const [level, periode, tier] = tc.params;
-          const data = periode ? db.getReport(level, periode, tier || 'standar') : db.getLatestReports(level, 5);
+          const data = periode ? db.getReport(level, periode, tier || 'detail') : db.getLatestReports(level, 5);
           followUpData.push({ type: 'report', level, periode, tier, data });
           needsFollowUp = true;
           break;

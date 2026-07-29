@@ -302,10 +302,17 @@ function getLatestReportByTier(level, tier) {
   `).get(level, tier);
 }
 
-function getReport(level, periode_end, tier = 'standar') {
+function getReport(level, periode_end, tier = 'detail') {
   return db.prepare(`
     SELECT * FROM laporan WHERE level = ? AND periode_end = ? AND tier = ?
   `).get(level, periode_end, tier);
+}
+
+// standar/umum only ever exist to be sent once, then are cleaned up — only
+// detail is the permanent record (FR-DB-3, revised). Scoped to one
+// level+periode so it never touches other days' or other levels' reports.
+function deleteNonDetailReports(level, periode_end) {
+  return db.prepare(`DELETE FROM laporan WHERE level = ? AND periode_end = ? AND tier != 'detail'`).run(level, periode_end);
 }
 
 // ─── Memori Orinthia ───
@@ -529,6 +536,7 @@ module.exports = {
   getLatestReports,
   getLatestReportByTier,
   getReport,
+  deleteNonDetailReports,
   setMemory,
   getMemory,
   getAllMemory,
