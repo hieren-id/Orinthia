@@ -30,7 +30,11 @@ function isWhitelistedGroup(groupId) {
 function getContact(number) {
   const norm = normalizeNumber(number);
   const contacts = db.getAllContacts();
-  return contacts.find(c => normalizeNumber(c.nomor) === norm) || null;
+  const byNumber = contacts.find(c => normalizeNumber(c.nomor) === norm);
+  if (byNumber) return byNumber;
+  // Fall back to matching by name (e.g. config.REPORT_RECIPIENTS.pc uses
+  // "Mas Rafi", not his number) — mirrors how getGroupByName already works.
+  return contacts.find(c => c.nama.toLowerCase() === String(number).toLowerCase()) || null;
 }
 
 function getGroup(groupId) {

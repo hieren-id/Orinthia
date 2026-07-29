@@ -46,24 +46,42 @@ async function runPipelineForLevel(ctx, sp, level) {
     `[${m.waktu}] ${m.nama_pengirim || m.nomor_pengirim} (${m.sumber === 'pc' ? 'PC' : m.sumber_nama}): ${m.isi}`
   ).join('\n');
 
+  // Delivery to the fixed recipient list is done by this code, not left to
+  // the model to remember in one combined response — asking Orinthia to
+  // emit N separate REPLY calls alongside STORE_REPORT is exactly the
+  // pattern that caused the harian/mingguan mix-up (multiple things to get
+  // right in a single response). She only needs to produce the report text;
+  // config.REPORT_RECIPIENTS deterministically decides who gets it.
   const reportPrompt = `[MOSS PIPELINE — Laporan ${level}]\n\n` +
     `Buat laporan evaluasi ${level} berdasarkan percakapan hari ini dan jawaban evaluasi.\n` +
     `Periode: ${periode.start} — ${periode.end}\n\n` +
     `Percakapan hari ini:\n${msgContext}\n\n` +
     `Gunakan:\n` +
-    `<<MOSS|STORE_REPORT|${level}|{konten laporan}>>\n` +
-    `<<MOSS|REPLY|{target}|{pesan laporan untuk manusia}>>\n\n` +
-    `Kirim laporan ke: Mas Rafi (PC), grup Sinergi, grup P2MW Hieren, grup P2MW Privat.`;
+    `<<MOSS|STORE_REPORT|${level}|{konten laporan}>>\n\n` +
+    `Laporan ini akan otomatis dikirim ke Mas Rafi dan seluruh grup terdaftar — tidak perlu REPLY manual, cukup STORE_REPORT.`;
 
   const reportResult = await callOrinthia(sp, reportPrompt);
+  let reportContent = null;
   if (reportResult.text) {
     const toolCalls = parseToolCalls(reportResult.text);
+    const storeCall = toolCalls.find((tc) => tc.command === 'STORE_REPORT');
+    if (storeCall) reportContent = storeCall.params[1];
+
     if (toolCalls.length > 0) {
       const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
       logToolResults(execResult.results, { level, stage: 'report' });
     } else {
       logger.warn({ level, textPreview: reportResult.text.slice(0, 500) }, `Pipeline: laporan ${level} tidak menghasilkan tool call`);
     }
+  }
+
+  if (reportContent) {
+    const recipients = [...config.REPORT_RECIPIENTS.pc, ...config.REPORT_RECIPIENTS.groups];
+    const deliveryCalls = recipients.map((target) => ({ command: 'REPLY', params: [target, reportContent] }));
+    const deliveryResult = await executeTools(deliveryCalls, { ...ctx, senderName: 'Pipeline' });
+    logToolResults(deliveryResult.results, { level, stage: 'report-delivery' });
+  } else {
+    logger.warn({ level }, `Pipeline: laporan ${level} tidak tersimpan (tidak ada STORE_REPORT) — tidak ada yang dikirim`);
   }
 
   logger.info({ level }, `Pipeline: laporan ${level} selesai`);
