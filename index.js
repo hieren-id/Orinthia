@@ -1,26 +1,56 @@
-// FILE: index.js
-// Ini adalah file UTAMA untuk menjalankan bot.
-
+const db = require('./src/core/db');
+const wa = require('./src/core/whatsapp');
+const { buildSystemPrompt } = require('./src/orinthia/promptBuilder');
+const { handleMessage, setSystemPromptCache } = require('./src/moss/messageHandler');
+const { startScheduler } = require('./src/scheduler');
+const logger = require('./src/utils/logger');
 const qrcode = require('qrcode-terminal');
-const client = require('./src/core/whatsapp');
-const handleMessage = require('./src/handlers/messageHandler');
-const handleIncomingCall = require('./src/handlers/callHandler');
-const { initializeKnowledgeBase } = require('./src/services/ragService');
 
-// --- EVENT HANDLERS ---
+async function main() {
+  logger.info('Orinthia v1 — Sistensia AI Manager starting...');
 
-client.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
-    console.log('SCAN QR CODE DI ATAS DENGAN WHATSAPP!');
+  db.initDatabase();
+  logger.info('Database initialized');
+
+  const ctx = {
+    client: null,
+    isFrozen: false,
+    config: require('./src/config'),
+  };
+
+  const sp = buildSystemPrompt(ctx);
+  setSystemPromptCache(sp);
+  logger.info({ promptLength: sp.length }, 'System prompt built');
+
+  ctx.client = await wa.initializeWhatsApp(async (msg) => {
+    await handleMessage(msg, ctx);
+  });
+
+  ctx.client.ev.on('connection.update', (update) => {
+    if (update.connection === 'open') {
+      logger.info('WhatsApp connected');
+      startScheduler(ctx);
+    }
+    if (update.qr) {
+      logger.info('QR code received — scan with WhatsApp');
+      qrcode.generate(update.qr, { small: true });
+    }
+  });
+
+  process.on('SIGINT', () => shutdown(ctx));
+  process.on('SIGTERM', () => shutdown(ctx));
+
+  logger.info('Orinthia is running');
+}
+
+async function shutdown(ctx) {
+  logger.info('Shutting down...');
+  try { db.closeDatabase(); } catch {}
+  try { ctx.client?.end?.(); } catch {}
+  process.exit(0);
+}
+
+main().catch((err) => {
+  logger.fatal({ err }, 'Fatal startup error');
+  process.exit(1);
 });
-
-client.on('ready', async () => {
-    console.log('Bot Reika siap! Ketik "!aktif" di WA untuk menyalakan.');
-    await initializeKnowledgeBase();
-});
-
-client.on('message_create', handleMessage);
-
-client.on('incoming_call', handleIncomingCall);
-
-client.initialize();

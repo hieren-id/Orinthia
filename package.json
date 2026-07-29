@@ -1,20 +1,21 @@
 {
-  "name": "reika",
+  "name": "orinthia",
   "version": "1.0.0",
-  "description": "",
+  "description": "Orinthia v1 — Sistensia AI Manager",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "node --watch index.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "Karel",
   "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.2.3",
-    "groq-sdk": "^0.37.0",
-    "openai": "^6.9.1",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "github:pedroslopez/whatsapp-web.js#main"
+    "@whiskeysockets/baileys": "^6.7.16",
+    "better-sqlite3": "^11.0.3",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "pino": "^9.0.0",
+    "qrcode-terminal": "^0.12.0"
   }
 }

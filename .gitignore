@@ -1,5 +1,5 @@
 node_modules/
-.wwebjs_auth/
-guide/
+data/*.db
+data/*.log
 .env
-package-lock.json
+baileys_auth/
