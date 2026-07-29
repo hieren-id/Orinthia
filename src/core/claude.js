@@ -34,7 +34,6 @@ async function _spawnClaude(systemPrompt, messagePrompt, { timeout, tools, effor
     '--system-prompt-file', tmpFile,
     '--model', 'sonnet',
     '--effort', effort,
-    '--bare',
     '--tools', tools,
     '--output-format', 'text',
   ];
