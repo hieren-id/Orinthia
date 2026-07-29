@@ -13,6 +13,7 @@ function initDatabase() {
   db.pragma('foreign_keys = ON');
   createTables();
   migrateSchema();
+  dedupeGroups();
   seedData();
   return db;
 }
@@ -158,11 +159,50 @@ function seedData() {
     insertKontak.run(c.nama, c.nomor, c.jabatan, c.tupoksi);
   }
 
-  const insertGrup = db.prepare(`INSERT OR IGNORE INTO grup (nama, group_id, anggota) VALUES (?, ?, ?)`);
+  // nama has no UNIQUE constraint (group_id does), so a plain INSERT OR
+  // IGNORE only guards against re-inserting the exact same group_id — it
+  // does NOT stop a fresh row from being created for a nama that already
+  // exists under a different group_id. That happened for real: a group
+  // whose group_id had been auto-repaired to its real WhatsApp ID got a
+  // second, duplicate row re-seeded from the still-unfixed .env value on
+  // the next restart, and the two rows sharing one nama then broke the
+  // by-nama repair UPDATE. Skip entirely if a row for this nama exists —
+  // never let a stale .env placeholder overwrite or duplicate real data.
+  const getGrupByNama = db.prepare(`SELECT id FROM grup WHERE nama = ?`);
+  const insertGrup = db.prepare(`INSERT INTO grup (nama, group_id, anggota) VALUES (?, ?, ?)`);
   for (const g of config.WHITELISTED_GROUPS) {
     if (!g.group_id) continue;
-    insertGrup.run(g.nama, g.group_id, JSON.stringify(g.anggota));
+    if (getGrupByNama.get(g.nama)) continue;
+    try {
+      insertGrup.run(g.nama, g.group_id, JSON.stringify(g.anggota));
+    } catch {} // group_id collision (e.g. placeholder reused) — leave existing row alone
   }
+}
+
+// One-off cleanup for rows created by the seedData bug above, before it was
+// fixed: keeps the row with the most complete/valid data per nama (a
+// numeric-looking group_id wins, then nama_asli set, then lowest id — the
+// original), deletes the rest.
+function dedupeGroups() {
+  const groups = db.prepare(`SELECT * FROM grup`).all();
+  const byNama = new Map();
+  for (const g of groups) {
+    const existing = byNama.get(g.nama);
+    if (!existing) { byNama.set(g.nama, g); continue; }
+    const gLooksValid = /^\d+(-\d+)?$/.test(g.group_id);
+    const existingLooksValid = /^\d+(-\d+)?$/.test(existing.group_id);
+    const better = gLooksValid !== existingLooksValid
+      ? (gLooksValid ? g : existing)
+      : (!!g.nama_asli !== !!existing.nama_asli ? (g.nama_asli ? g : existing) : (g.id < existing.id ? g : existing));
+    byNama.set(g.nama, better);
+  }
+  const keepIds = new Set([...byNama.values()].map(g => g.id));
+  const toDelete = groups.filter(g => !keepIds.has(g.id));
+  if (toDelete.length > 0) {
+    const del = db.prepare(`DELETE FROM grup WHERE id = ?`);
+    for (const g of toDelete) del.run(g.id);
+  }
+  return toDelete;
 }
 
 // ─── Pesan ───
@@ -321,8 +361,12 @@ function updateGroupSubject(group_id, nama_asli) {
 // (e.g. GROUP_P2MW_HIEREN in .env holding the group's title instead of its
 // real numeric WhatsApp ID), found by matching that name against the bot's
 // actual participating groups.
-function repairGroupId(nama, group_id, nama_asli) {
-  return db.prepare(`UPDATE grup SET group_id = ?, nama_asli = ? WHERE nama = ?`).run(group_id, nama_asli, nama);
+function repairGroupId(id, group_id, nama_asli) {
+  // Targeted by row id, not nama — an UPDATE ... WHERE nama = ? would touch
+  // every row sharing that name at once (this broke in exactly that way
+  // when a duplicate nama existed: it tried to give two rows the same
+  // group_id in one statement and hit the UNIQUE constraint).
+  return db.prepare(`UPDATE grup SET group_id = ?, nama_asli = ? WHERE id = ?`).run(group_id, nama_asli, id);
 }
 
 // ─── Scheduler ───

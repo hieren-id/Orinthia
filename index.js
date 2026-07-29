@@ -97,14 +97,19 @@ async function repairMisconfiguredGroupIds(ctx) {
   }
 
   for (const g of misconfigured) {
-    const match = bySubject.get(g.group_id.toLowerCase());
-    if (match) {
-      const realId = wa.normalizeNumber(match.id);
-      db.repairGroupId(g.nama, realId, match.subject);
-      logger.info({ groupName: g.nama, realId, subject: match.subject }, 'Group ID auto-repaired');
-    } else {
-      logger.warn({ groupName: g.nama, badValue: g.group_id },
-        'Could not find a matching WhatsApp group to repair — is Orinthia actually a member of this group?');
+    try {
+      const match = bySubject.get(g.group_id.toLowerCase());
+      if (match) {
+        const realId = wa.normalizeNumber(match.id);
+        db.repairGroupId(g.id, realId, match.subject);
+        logger.info({ groupName: g.nama, realId, subject: match.subject }, 'Group ID auto-repaired');
+      } else {
+        logger.warn({ groupName: g.nama, badValue: g.group_id },
+          'Could not find a matching WhatsApp group to repair — is Orinthia actually a member of this group?');
+      }
+    } catch (err) {
+      // Don't let one bad match abort repair attempts for the rest of the batch.
+      logger.error({ err: err.message, groupName: g.nama }, 'Failed to repair this group, continuing with the rest');
     }
   }
 }
