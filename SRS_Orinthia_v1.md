@@ -211,9 +211,9 @@ Contoh respons Orinthia dalam kasus FR-ACL-10:
 
 | Langkah | Aksi |
 |---|---|
-| 1 | Membuat laporan evaluasi harian berdasarkan chat tiap anggota, terutama jawaban atas pertanyaan evaluasi |
-| 2 | Menyimpan laporan ke database |
-| 3 | Mengirim laporan ke: **Mas Rafi**, **grup Sinergi**, **grup P2MW Hieren**, **grup P2MW Privat** |
+| 1 | Membuat laporan evaluasi harian berdasarkan chat tiap anggota, terutama jawaban atas pertanyaan evaluasi — dalam **3 tier** sekaligus: `detail` (paling rinci), `standar` (rinci, nada formal/profesional), `umum` (garis besar saja, tanpa detail spesifik) |
+| 2 | Menyimpan ketiga tier laporan ke database |
+| 3 | Mengirim tiap tier ke penerimanya masing-masing — deterministik lewat kode (`config.REPORT_RECIPIENTS`), bukan diserahkan ke satu respons gabungan: `detail` → **grup P2MW Privat**; `standar` → **Mas Rafi**, **grup P2MW Hieren**; `umum` → **grup Sinergi** |
 | 4 | Membuat **sesi baru**, mengirim seluruh percakapan tersimpan, memerintahkan Orinthia meng-*condense* tiap percakapan per grup dan per pengguna, serta membuat rangkuman keseluruhan. Setiap rangkuman disimpan lewat tool calling sesuai nama, grup, atau kategori keseluruhan |
 | 5 | Menghapus **seluruh percakapan** dari database sehingga tersisa rangkuman saja. Kembali ke sesi utama, lalu bersihkan konteks hingga **nol** (atau buat sesi baru) |
 | 6 | Mengirim ke Orinthia seluruh rangkuman dan laporan terbaru dari database, disertai pemberitahuan bahwa ia melanjutkan sesi sebelumnya sesuai system prompt awal |
@@ -357,6 +357,7 @@ Pesan {Nama Pengirim} sudah saya catat dan akan segera saya sampaikan ke ibu jik
 | Nama sistem | Awalnya tanpa nama; final **Moss** |
 | Pengiriman chat grup | Awalnya hanya dikirim saat di-*tag*; **direvisi** — semua chat belum dibaca dikirim pada setiap pemicu (FR-MSG-3) |
 | Titik mulai kalender | Awalnya siklus hari tetap (7/28/84/336 hari) dari tanggal nol; **direvisi** — dipicu oleh kalender asli: mingguan tiap hari Minggu, bulanan tiap tanggal 28, kuartalan tiap 28 Maret/Juni/September/Desember, tahunan tiap 28 Desember (FR-PIPE-6) |
+| Isi laporan ke tiap penerima | Awalnya satu laporan seragam untuk Mas Rafi + semua grup; **direvisi** — 3 tier (`detail`/`standar`/`umum`) dengan isi sama secara garis besar tapi beda tingkat rincian, dikirim ke penerima berbeda per tier (FR-PIPE-1 langkah 3) |
 
 ---
 

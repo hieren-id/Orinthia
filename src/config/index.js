@@ -32,9 +32,15 @@ const SCHEDULE_TIMES = {
   pipeline: '0 22 * * *',
 };
 
+// Laporan yang sama isinya secara garis besar, tapi ditulis dalam 3 tingkat
+// detail berbeda per audiens: P2MW Privat (internal) dapat versi paling
+// rinci; Mas Rafi dan P2MW Hieren dapat versi standar formal/profesional;
+// Sinergi dapat versi umum (tidak rinci). Lihat FR-PIPE-1 di SRS dan
+// promptBuilder.js untuk instruksi lengkap ke Orinthia soal masing-masing.
 const REPORT_RECIPIENTS = {
-  pc: ['Mas Rafi'],
-  groups: ['Sinergi', 'P2MW Hieren', 'P2MW Privat'],
+  detail: ['P2MW Privat'],
+  standar: ['Mas Rafi', 'P2MW Hieren'],
+  umum: ['Sinergi'],
 };
 
 module.exports = {

@@ -53,10 +53,14 @@ async function executeTools(toolCalls, ctx) {
           break;
         }
         case 'STORE_REPORT': {
-          const [level, content] = tc.params;
+          const [level, tier, content] = tc.params;
+          if (!['detail', 'standar', 'umum'].includes(tier)) {
+            results.push({ command: 'STORE_REPORT', status: 'error', error: `invalid tier: ${tier}` });
+            break;
+          }
           const periode = getCurrentPeriode(level);
-          db.insertReport(level, content, periode.start, periode.end);
-          results.push({ command: 'STORE_REPORT', status: 'stored' });
+          db.insertReport(level, tier, content, periode.start, periode.end);
+          results.push({ command: 'STORE_REPORT', status: 'stored', tier });
           break;
         }
         case 'STORE_SUMMARY': {
@@ -74,9 +78,9 @@ async function executeTools(toolCalls, ctx) {
           break;
         }
         case 'GET_REPORT': {
-          const [level, periode] = tc.params;
-          const data = periode ? db.getReport(level, periode) : db.getLatestReports(level, 5);
-          followUpData.push({ type: 'report', level, periode, data });
+          const [level, periode, tier] = tc.params;
+          const data = periode ? db.getReport(level, periode, tier || 'standar') : db.getLatestReports(level, 5);
+          followUpData.push({ type: 'report', level, periode, tier, data });
           needsFollowUp = true;
           break;
         }

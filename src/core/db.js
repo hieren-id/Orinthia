@@ -29,6 +29,10 @@ function migrateSchema() {
   if (!grupColumns.includes('nama_asli')) {
     db.exec(`ALTER TABLE grup ADD COLUMN nama_asli TEXT`);
   }
+  const laporanColumns = db.prepare(`PRAGMA table_info(laporan)`).all().map(c => c.name);
+  if (!laporanColumns.includes('tier')) {
+    db.exec(`ALTER TABLE laporan ADD COLUMN tier TEXT NOT NULL DEFAULT 'standar'`);
+  }
 }
 
 function getDb() {
@@ -66,6 +70,7 @@ function createTables() {
     CREATE TABLE IF NOT EXISTS laporan (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       level TEXT NOT NULL CHECK(level IN ('harian','mingguan','bulanan','kuartalan','tahunan')),
+      tier TEXT NOT NULL DEFAULT 'standar' CHECK(tier IN ('detail','standar','umum')),
       konten TEXT NOT NULL,
       periode_start DATE NOT NULL,
       periode_end DATE NOT NULL,
@@ -273,11 +278,11 @@ function deleteOldSummaries(level, before_date) {
 
 // ─── Laporan ───
 
-function insertReport(level, konten, periode_start, periode_end) {
+function insertReport(level, tier, konten, periode_start, periode_end) {
   return db.prepare(`
-    INSERT INTO laporan (level, konten, periode_start, periode_end)
-    VALUES (?, ?, ?, ?)
-  `).run(level, konten, periode_start, periode_end);
+    INSERT INTO laporan (level, tier, konten, periode_start, periode_end)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(level, tier, konten, periode_start, periode_end);
 }
 
 function getLatestReports(level, limit = 5) {
@@ -287,10 +292,20 @@ function getLatestReports(level, limit = 5) {
   `).all(level, limit);
 }
 
-function getReport(level, periode_end) {
+// One row per tier (detail/standar/umum) — plain getLatestReports(level, 1)
+// would only surface whichever tier happens to sort first for the same
+// periode_end, since all three are written moments apart in the same run.
+function getLatestReportByTier(level, tier) {
   return db.prepare(`
-    SELECT * FROM laporan WHERE level = ? AND periode_end = ?
-  `).get(level, periode_end);
+    SELECT * FROM laporan WHERE level = ? AND tier = ?
+    ORDER BY periode_end DESC LIMIT 1
+  `).get(level, tier);
+}
+
+function getReport(level, periode_end, tier = 'standar') {
+  return db.prepare(`
+    SELECT * FROM laporan WHERE level = ? AND periode_end = ? AND tier = ?
+  `).get(level, periode_end, tier);
 }
 
 // ─── Memori Orinthia ───
@@ -512,6 +527,7 @@ module.exports = {
   deleteOldSummaries,
   insertReport,
   getLatestReports,
+  getLatestReportByTier,
   getReport,
   setMemory,
   getMemory,

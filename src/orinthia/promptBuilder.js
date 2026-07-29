@@ -46,8 +46,14 @@ Daftar tool yang tersedia:
 Kirim pesan. Target: nomor telepon atau nama grup.
 Contoh: <<MOSS|REPLY|6281234567890|Halo, apa kabar?>>
 
-<<MOSS|STORE_REPORT|level|content>>
+<<MOSS|STORE_REPORT|level|tier|content>>
 Simpan laporan. Level: harian, mingguan, bulanan, kuartalan, tahunan.
+Isi laporannya sama secara garis besar (data dan kejadian yang sama), tapi tier menentukan seberapa rinci dan nada tulisannya — buat SEMUA TIGA tier setiap kali laporan dibuat, masing-masing lewat STORE_REPORT terpisah:
+- "detail" — paling rinci. Untuk grup P2MW Privat (internal). Boleh mencantumkan detail teknis, angka spesifik, dan hal-hal yang belum tentu ingin ditunjukkan ke pihak luar.
+- "standar" — rinci, tapi nada formal dan profesional. Untuk Mas Rafi dan grup P2MW Hieren (pihak luar/stakeholder). Detail tetap lengkap, tapi bahasanya lebih terjaga.
+- "umum" — TIDAK rinci, garis besar saja. Untuk grup Sinergi. Jangan cantumkan detail spesifik per orang — cukup gambaran umum progres tim.
+Pengiriman ke masing-masing grup/kontak sudah otomatis berdasarkan tier — kamu tidak perlu REPLY manual untuk laporan.
+Contoh: <<MOSS|STORE_REPORT|harian|detail|...>> lalu <<MOSS|STORE_REPORT|harian|standar|...>> lalu <<MOSS|STORE_REPORT|harian|umum|...>>
 
 <<MOSS|STORE_SUMMARY|level|scope|nama_scope|content>>
 Simpan rangkuman. Scope: pc:{nomor}, grup:{id}, keseluruhan.
@@ -56,8 +62,8 @@ Contoh: <<MOSS|STORE_SUMMARY|harian|pc:6281234567890|Azka|Rangkuman percakapan..
 <<MOSS|GET_SUMMARY|level|scope>>
 Ambil rangkuman dari database. Kosongkan scope untuk semua.
 
-<<MOSS|GET_REPORT|level|periode>>
-Ambil laporan. Format periode: YYYY-MM-DD.
+<<MOSS|GET_REPORT|level|periode|tier>>
+Ambil laporan. Format periode: YYYY-MM-DD. Tier opsional (default "standar") — kosongkan periode untuk ambil 5 laporan terbaru dari semua tier.
 
 <<MOSS|GET_MEMORY|key>>
 Ambil dari memori permanen. Gunakan * untuk semua.

@@ -47,12 +47,18 @@ function buildRecentSummaries() {
 }
 
 function buildRecentReports() {
+  // Each level now has up to 3 tier variants (detail/standar/umum) stored
+  // moments apart with the same periode_end, so a plain "latest report"
+  // query would return whichever tier happens to sort first — ambiguous.
+  // Show her the "detail" tier specifically: the most complete version, and
+  // the one she'd want as her own context regardless of what each external
+  // recipient was shown.
   const levels = ['harian', 'mingguan', 'bulanan', 'kuartalan', 'tahunan'];
   const parts = [];
   for (const level of levels) {
-    const reports = db.getLatestReports(level, 1);
-    if (reports.length > 0) {
-      parts.push(`### Laporan ${level} terakhir (${reports[0].periode_start} — ${reports[0].periode_end})\n${reports[0].konten}`);
+    const report = db.getLatestReportByTier(level, 'detail');
+    if (report) {
+      parts.push(`### Laporan ${level} terakhir (${report.periode_start} — ${report.periode_end})\n${report.konten}`);
     }
   }
   return parts.length > 0 ? `## Laporan Terbaru\n${parts.join('\n\n')}` : '';

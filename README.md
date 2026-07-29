@@ -147,6 +147,14 @@ Sistem evaluasi dan laporan berjenjang, dipicu berdasarkan kalender asli (bukan 
 
 Beberapa tingkat bisa terpicu di hari yang sama (mis. tanggal 28 yang jatuh di hari Minggu, atau 28 Desember yang juga akhir kuartal dan akhir tahun) — pipeline tetap memprosesnya berurutan dari tingkat terendah ke tertinggi.
 
+**Laporan 3 tier.** Tiap laporan dibuat dalam 3 versi sekaligus (isi sama secara garis besar, beda tingkat detail/nada), dikirim ke penerima berbeda — deterministik lewat `config.REPORT_RECIPIENTS`, bukan bergantung pada Orinthia mengingat siapa saja yang perlu di-REPLY:
+
+| Tier | Detail | Nada | Penerima |
+|---|---|---|---|
+| `detail` | Paling rinci | Bebas | Grup P2MW Privat |
+| `standar` | Rinci | Formal/profesional | Mas Rafi, grup P2MW Hieren |
+| `umum` | Garis besar saja | — | Grup Sinergi |
+
 ### Tool Calling
 Orinthia berkomunikasi dengan dunia luar melalui format teks khusus:
 
@@ -157,7 +165,7 @@ Orinthia berkomunikasi dengan dunia luar melalui format teks khusus:
 | Command | Keterangan |
 |---|---|
 | `REPLY` | Kirim pesan ke target |
-| `STORE_REPORT` | Simpan laporan |
+| `STORE_REPORT` | Simpan laporan (3 tier: detail/standar/umum — lihat Pipeline Berjenjang) |
 | `STORE_SUMMARY` | Simpan rangkuman |
 | `GET_SUMMARY` | Ambil rangkuman dari DB |
 | `GET_REPORT` | Ambil laporan dari DB |

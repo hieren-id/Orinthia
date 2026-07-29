@@ -50,22 +50,29 @@ async function runPipelineForLevel(ctx, sp, level) {
   // the model to remember in one combined response — asking Orinthia to
   // emit N separate REPLY calls alongside STORE_REPORT is exactly the
   // pattern that caused the harian/mingguan mix-up (multiple things to get
-  // right in a single response). She only needs to produce the report text;
-  // config.REPORT_RECIPIENTS deterministically decides who gets it.
+  // right in a single response). She only needs to produce the report text
+  // per tier; config.REPORT_RECIPIENTS deterministically decides who gets
+  // which tier (detail -> P2MW Privat, standar -> Mas Rafi + P2MW Hieren,
+  // umum -> Sinergi).
   const reportPrompt = `[MOSS PIPELINE — Laporan ${level}]\n\n` +
     `Buat laporan evaluasi ${level} berdasarkan percakapan hari ini dan jawaban evaluasi.\n` +
     `Periode: ${periode.start} — ${periode.end}\n\n` +
     `Percakapan hari ini:\n${msgContext}\n\n` +
-    `Gunakan:\n` +
-    `<<MOSS|STORE_REPORT|${level}|{konten laporan}>>\n\n` +
-    `Laporan ini akan otomatis dikirim ke Mas Rafi dan seluruh grup terdaftar — tidak perlu REPLY manual, cukup STORE_REPORT.`;
+    `Buat SEMUA TIGA tier laporan (isi sama secara garis besar, beda tingkat detail/nada — lihat instruksi STORE_REPORT):\n` +
+    `<<MOSS|STORE_REPORT|${level}|detail|{konten paling rinci, untuk P2MW Privat}>>\n` +
+    `<<MOSS|STORE_REPORT|${level}|standar|{konten rinci, nada formal/profesional, untuk Mas Rafi dan P2MW Hieren}>>\n` +
+    `<<MOSS|STORE_REPORT|${level}|umum|{konten garis besar saja tanpa detail spesifik, untuk grup Sinergi}>>\n\n` +
+    `Pengiriman ke tiap grup/kontak sudah otomatis berdasarkan tier — tidak perlu REPLY manual.`;
 
   const reportResult = await callOrinthia(sp, reportPrompt);
-  let reportContent = null;
+  const reportByTier = {};
   if (reportResult.text) {
     const toolCalls = parseToolCalls(reportResult.text);
-    const storeCall = toolCalls.find((tc) => tc.command === 'STORE_REPORT');
-    if (storeCall) reportContent = storeCall.params[1];
+    for (const tc of toolCalls) {
+      if (tc.command === 'STORE_REPORT' && ['detail', 'standar', 'umum'].includes(tc.params[1])) {
+        reportByTier[tc.params[1]] = tc.params[2];
+      }
+    }
 
     if (toolCalls.length > 0) {
       const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Pipeline' });
@@ -75,13 +82,20 @@ async function runPipelineForLevel(ctx, sp, level) {
     }
   }
 
-  if (reportContent) {
-    const recipients = [...config.REPORT_RECIPIENTS.pc, ...config.REPORT_RECIPIENTS.groups];
-    const deliveryCalls = recipients.map((target) => ({ command: 'REPLY', params: [target, reportContent] }));
+  const deliveryCalls = [];
+  for (const tier of ['detail', 'standar', 'umum']) {
+    const content = reportByTier[tier];
+    if (!content) {
+      logger.warn({ level, tier }, `Pipeline: laporan ${level} tier ${tier} tidak tersimpan — penerima tier ini tidak dikirimi apa pun`);
+      continue;
+    }
+    for (const target of config.REPORT_RECIPIENTS[tier]) {
+      deliveryCalls.push({ command: 'REPLY', params: [target, content] });
+    }
+  }
+  if (deliveryCalls.length > 0) {
     const deliveryResult = await executeTools(deliveryCalls, { ...ctx, senderName: 'Pipeline' });
     logToolResults(deliveryResult.results, { level, stage: 'report-delivery' });
-  } else {
-    logger.warn({ level }, `Pipeline: laporan ${level} tidak tersimpan (tidak ada STORE_REPORT) — tidak ada yang dikirim`);
   }
 
   logger.info({ level }, `Pipeline: laporan ${level} selesai`);
