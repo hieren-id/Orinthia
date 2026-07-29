@@ -47,8 +47,12 @@ async function main() {
 
 async function shutdown(ctx) {
   logger.info('Shutting down...');
-  try { db.closeDatabase(); } catch {}
   try { ctx.client?.end?.(); } catch {}
+  // Baileys writes session/key updates to baileys_auth/*.json asynchronously;
+  // exiting immediately can cut a write mid-flight and corrupt the Signal
+  // session, making future messages undecryptable for the recipient.
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  try { db.closeDatabase(); } catch {}
   process.exit(0);
 }
 
