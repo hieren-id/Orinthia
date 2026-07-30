@@ -9,6 +9,16 @@ function hashMessage(target, message) {
   return crypto.createHash('sha256').update(`${target}|${message}|${today}`).digest('hex').slice(0, 16);
 }
 
+// Baileys is a reverse-engineered client, not the official app — sending
+// back-to-back with no pacing has repeatedly shown up in practice (and is a
+// commonly reported Baileys issue) as intermittent "Waiting for this
+// message" on the recipient's side, specifically for bot-sent messages
+// (manually-sent messages from the same number don't show the same
+// pattern). A short breather after each send gives the session/ratchet
+// state time to settle before the next one.
+const SEND_PACING_MS = 1500;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function resolveJid(target, client) {
   if (!target) return null;
   if (target.includes('@')) return target;
@@ -47,6 +57,7 @@ async function executeTools(toolCalls, ctx) {
             await client.sendMessage(jid, { text: message });
             db.recordSentMessage(hash, jid);
             results.push({ command: 'REPLY', status: 'sent', target: jid });
+            await sleep(SEND_PACING_MS);
           } catch (err) {
             results.push({ command: 'REPLY', status: 'error', error: err.message });
           }
