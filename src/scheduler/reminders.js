@@ -36,7 +36,13 @@ async function fireReminder(ctx, reminder) {
     const sp = buildSystemPrompt(ctx);
     const result = await callOrinthia(sp, prompt);
 
-    if (result.text) {
+    if (result.error && !result.text) {
+      // callOrinthia resolves (doesn't throw) on failure, so without this
+      // check a Claude CLI error — timeout, dead --resume session, etc. —
+      // fell straight through to markReminderDone/markReminderRun below as
+      // if the reminder had fired normally: no delivery, no log, no trace.
+      logger.error({ id: reminder.id, error: result.error }, 'Reminder: Claude call failed — nothing sent');
+    } else if (result.text) {
       const toolCalls = parseToolCalls(result.text);
       if (toolCalls.length > 0) {
         const execResult = await executeTools(toolCalls, { ...ctx, senderName: 'Reminder' });
