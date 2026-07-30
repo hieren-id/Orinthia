@@ -22,7 +22,7 @@ WhatsApp Web
 
 **Moss** — sistem Node.js yang menjadi perantara antara WhatsApp dan Orinthia. Menangani routing, penjadwalan, database, dan pesan galat.
 
-**Orinthia** — persona AI yang berinteraksi dengan pengguna. Dijalankan di atas Claude Code CLI. Tidak dapat mengirim pesan langsung — semua keluaran ke WhatsApp hanya melalui tool calling.
+**Orinthia** — persona AI yang berinteraksi dengan pengguna. Dijalankan di atas Claude Code CLI dengan **sesi sungguhan** (`--session-id` saat pertama kali, `--resume` untuk melanjutkan) yang bertahan lintas pemicu — bukan proses baru yang disusun ulang dari database tiap kali, supaya Orinthia benar-benar mengingat percakapan hari itu, bukan cuma rangkuman. Sesi direset otomatis oleh pipeline 22.00 setiap kali suatu tingkat selesai di-flush (lihat `src/core/claude.js`). Tidak dapat mengirim pesan langsung — semua keluaran ke WhatsApp hanya melalui tool calling.
 
 ## Tech Stack
 

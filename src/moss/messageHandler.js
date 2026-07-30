@@ -250,8 +250,11 @@ async function triggerOrinthia(ctx, triggerNumber, triggerName) {
       logToolResults(execResult.results, { triggerNumber });
 
       if (execResult.needsFollowUp && followUpCount < MAX_FOLLOW_UPS) {
-        const followUpMsg = formatFollowUpData(execResult.followUpData);
-        currentPrompt = `${currentPrompt}\n\n${followUpMsg}`;
+        // With a real Claude session (--resume), the prior turn is already
+        // part of the conversation history — re-sending the whole
+        // accumulated prompt here would duplicate it as a new turn on top
+        // of itself. Only the new increment needs to go out.
+        currentPrompt = formatFollowUpData(execResult.followUpData);
         followUpCount++;
         continue;
       }

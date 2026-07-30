@@ -1,7 +1,7 @@
 const db = require('../core/db');
 const config = require('../config');
 const wa = require('../core/whatsapp');
-const { callOrinthia } = require('../core/claude');
+const { callOrinthia, startNewSession } = require('../core/claude');
 const { buildSystemPrompt } = require('../orinthia/promptBuilder');
 const { buildMessagePrompt } = require('../orinthia/contextManager');
 const { parseToolCalls } = require('./toolParser');
@@ -146,6 +146,12 @@ async function runPipelineForLevel(ctx, sp, level) {
   flushByLevel(level);
   logger.info({ level }, `Pipeline: flush ${level} selesai`);
 
+  // FR-PIPE-1 steps 5-6: the flushed raw conversation is gone, replaced by
+  // whatever just got condensed into a summary — the old session's full
+  // transcript (which still remembers all of it) needs to actually end here,
+  // not just be told to pretend it did. The next callOrinthia (inside
+  // restoreOrinthiaSession) creates a fresh session from this point.
+  startNewSession();
   await restoreOrinthiaSession(ctx, sp);
 }
 

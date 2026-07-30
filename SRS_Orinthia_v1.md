@@ -73,7 +73,7 @@ WhatsApp Web
 
 ### 2.2 Prinsip Arsitektur
 
-**FR-ARCH-1.** Seluruh WhatsApp diperlakukan sebagai **satu sesi percakapan tunggal** di sisi Orinthia. Orinthia melihat percakapan dari banyak sumber sekaligus (berbagai PC dan grup), sementara pengguna hanya melihat percakapannya sendiri.
+**FR-ARCH-1.** Seluruh WhatsApp diperlakukan sebagai **satu sesi percakapan tunggal** di sisi Orinthia. Orinthia melihat percakapan dari banyak sumber sekaligus (berbagai PC dan grup), sementara pengguna hanya melihat percakapannya sendiri. Diimplementasikan sebagai sesi Claude Code sungguhan (`--session-id` saat dibuat, `--resume` untuk melanjutkan) yang bertahan lintas pemicu — bukan disimulasikan lewat konteks yang disusun ulang dari database tiap kali, karena itu berarti Orinthia tidak benar-benar mengingat balasannya sendiri di luar apa yang kebetulan tersimpan sebagai rangkuman/memori. Sesi direset (FR-PIPE-1 langkah 5–6) setiap kali pipeline selesai flush suatu tingkat.
 
 **FR-ARCH-2.** Orinthia **tidak dapat mengirim pesan secara langsung**. Semua keluaran ke WhatsApp hanya terjadi melalui tool calling. Respons Orinthia yang tidak mengandung tool call tidak sampai ke pengguna mana pun.
 
@@ -214,9 +214,9 @@ Contoh respons Orinthia dalam kasus FR-ACL-10:
 | 1 | Membuat laporan evaluasi harian berdasarkan chat tiap anggota, terutama jawaban atas pertanyaan evaluasi — dalam **3 tier** sekaligus: `detail` (paling rinci), `standar` (rinci, nada formal/profesional), `umum` (garis besar saja, tanpa detail spesifik) |
 | 2 | Menyimpan ketiga tier laporan ke database |
 | 3 | Mengirim tiap tier ke penerimanya masing-masing — deterministik lewat kode (`config.REPORT_RECIPIENTS`), bukan diserahkan ke satu respons gabungan: `detail` → **grup P2MW Privat**; `standar` → **Mas Rafi**, **grup P2MW Hieren**; `umum` → **grup Sinergi** |
-| 4 | Membuat **sesi baru**, mengirim seluruh percakapan tersimpan, memerintahkan Orinthia meng-*condense* tiap percakapan per grup dan per pengguna, serta membuat rangkuman keseluruhan. Setiap rangkuman disimpan lewat tool calling sesuai nama, grup, atau kategori keseluruhan |
-| 5 | Menghapus **seluruh percakapan** dari database sehingga tersisa rangkuman saja. Kembali ke sesi utama, lalu bersihkan konteks hingga **nol** (atau buat sesi baru) |
-| 6 | Mengirim ke Orinthia seluruh rangkuman dan laporan terbaru dari database, disertai pemberitahuan bahwa ia melanjutkan sesi sebelumnya sesuai system prompt awal |
+| 4 | Masih dalam sesi yang sama (Orinthia sudah mengalami percakapan hari itu sebagai bagian dari riwayat sesinya sendiri — tidak perlu dikirim ulang), memerintahkan Orinthia meng-*condense* tiap percakapan per grup dan per pengguna, serta membuat rangkuman keseluruhan. Setiap rangkuman disimpan lewat tool calling sesuai nama, grup, atau kategori keseluruhan |
+| 5 | Menghapus **seluruh percakapan** dari database sehingga tersisa rangkuman saja |
+| 6 | **Membuat sesi baru** (sesi lama, dengan seluruh riwayat mentahnya, resmi berakhir di sini) dan mengirim ke Orinthia seluruh rangkuman dan laporan terbaru dari database, disertai pemberitahuan bahwa ia melanjutkan sesi sebelumnya sesuai system prompt awal |
 | 7 | Mengirim seluruh chat yang dibekukan selama proses berlangsung |
 
 **FR-PIPE-2.** Selama pipeline berjalan, seluruh chat masuk **dibekukan** — tidak diproses, tetapi tetap disimpan sebagai chat belum dibaca.
@@ -359,6 +359,7 @@ Pesan {Nama Pengirim} sudah saya catat dan akan segera saya sampaikan ke ibu jik
 | Titik mulai kalender | Awalnya siklus hari tetap (7/28/84/336 hari) dari tanggal nol; **direvisi** — dipicu oleh kalender asli: mingguan tiap hari Minggu, bulanan tiap tanggal 28, kuartalan tiap 28 Maret/Juni/September/Desember, tahunan tiap 28 Desember (FR-PIPE-6) |
 | Isi laporan ke tiap penerima | Awalnya satu laporan seragam untuk Mas Rafi + semua grup; **direvisi** — 3 tier (`detail`/`standar`/`umum`) dengan isi sama secara garis besar tapi beda tingkat rincian, dikirim ke penerima berbeda per tier (FR-PIPE-1 langkah 3) |
 | Retensi laporan | Awalnya seluruh laporan permanen tanpa terkecuali (FR-DB-3); **direvisi** — hanya tier `detail` permanen sebagai acuan utama, tier `standar`/`umum` dihapus setelah terkirim supaya tidak menumpuk data yang isinya sudah terwakili oleh tier `detail` |
+| Mekanisme sesi (10.1 lama poin 2) | Awalnya tiap panggilan ke Orinthia adalah proses `claude -p` baru tanpa riwayat sungguhan — "satu sesi" hanya disimulasikan dengan menyusun ulang konteks dari database tiap kali, sehingga Orinthia tidak benar-benar mengingat balasannya sendiri di luar apa yang tersimpan sebagai rangkuman/memori. Gejalanya baru terasa nyata setelah dipakai beberapa waktu: Orinthia tampak lupa hal yang baru saja dibahas dalam hari yang sama. **Direvisi** — pakai sesi Claude Code sungguhan (`--session-id`/`--resume`), direset jadi sesi baru persis di titik FR-PIPE-1 langkah 5–6 |
 
 ---
 
@@ -369,9 +370,8 @@ Bagian ini di luar spesifikasi — hal-hal yang perlu diputuskan atau diwaspadai
 ### 10.1 Perlu diputuskan
 
 1. **Deteksi tool call.** Format teks apa yang dipakai, dan bagaimana mencegah Orinthia tidak sengaja memicu tool call saat sekadar membicarakan tool call dalam percakapan biasa?
-2. **Arti "konteks nol".** Claude Code tidak selalu menyediakan cara membersihkan konteks secara programatik. Apakah implementasinya selalu membuat sesi baru?
-3. **Pemotongan proses (FR-MSG-6).** Apa yang terjadi jika proses dipotong setelah sebagian tool call sudah dieksekusi? Perlu aturan idempotensi agar pesan tidak terkirim ganda.
-4. **Identifikasi pengirim di grup.** Bagaimana Moss memetakan nomor ke nama ketika seseorang berganti nomor?
+2. **Pemotongan proses (FR-MSG-6).** Apa yang terjadi jika proses dipotong setelah sebagian tool call sudah dieksekusi? Perlu aturan idempotensi agar pesan tidak terkirim ganda.
+3. **Identifikasi pengirim di grup.** Bagaimana Moss memetakan nomor ke nama ketika seseorang berganti nomor?
 
 ### 10.2 Risiko
 
